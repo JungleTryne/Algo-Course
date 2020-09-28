@@ -41,13 +41,13 @@ template <typename OutputIterator>
 void SubstringFinder<OutputIterator>::AddTextCharacter(char new_char) {
     ++text_char_counter_;
     //Filling up the buffer
-    while(static_cast<size_t>(text_char_counter_) < pattern_.size() - 1) {
+    while (static_cast<size_t>(text_char_counter_) < pattern_.size() - 1) {
         buffer_ += new_char;
         return;
     }
 
     //As long as the buffer is full, we can start calculation of prefix function
-    if(!buffer_ready_) {
+    if (!buffer_ready_) {
         buffer_ready_ = true;
         prefix_func_.resize(buffer_.size());
         FindPrefixFunc();
@@ -63,25 +63,25 @@ void SubstringFinder<OutputIterator>::ProceedPrefixFuncLoop(size_t last_char_ind
                                                             char new_char) {
     size_t prefix_index = prefix_func_[last_char_index];
 
-    if(buffer_[prefix_index] == new_char) {
+    if (buffer_[prefix_index] == new_char) {
         prefix_func_[new_char_index] = prefix_index + 1;
-        if(prefix_func_[new_char_index] == pattern_.size()) {
+        if (prefix_func_[new_char_index] == pattern_.size()) {
             size_t pattern_start_pos = static_cast<size_t>(text_char_counter_) - pattern_.size() + 1;
             SavePatternPosition(pattern_start_pos);
         }
         return;
     }
 
-    while(prefix_index > 0 && buffer_[prefix_index] != new_char) {
+    while (prefix_index > 0 && buffer_[prefix_index] != new_char) {
         prefix_index = prefix_func_[prefix_index - 1];
     }
 
-    if(buffer_[prefix_index] == new_char) {
+    if (buffer_[prefix_index] == new_char) {
         ++prefix_index;
     }
 
     prefix_func_[new_char_index] = prefix_index;
-    if(prefix_func_[new_char_index] == pattern_.size()) {
+    if (prefix_func_[new_char_index] == pattern_.size()) {
         size_t pattern_start_pos = static_cast<size_t>(text_char_counter_) - pattern_.size() + 1;
         SavePatternPosition(pattern_start_pos);
     }
@@ -97,7 +97,7 @@ void SubstringFinder<OutputIterator>::UpdatePrefixFunc(char new_char) {
 
 template <typename OutputIterator>
 void SubstringFinder<OutputIterator>::FindPrefixFunc() {
-    for(size_t i = 1; i < prefix_func_.size(); ++i) {
+    for (size_t i = 1; i < prefix_func_.size(); ++i) {
         ProceedPrefixFuncLoop(i - 1, i, buffer_[i]);
     }
 }
@@ -119,7 +119,7 @@ int main() {
     SubstringFinder finder(pattern, out_iter);
 
     char input;
-    while(std::cin >> input) {
+    while (std::cin >> input) {
         finder.AddTextCharacter(input);
     }
     std::cout << std::endl;
