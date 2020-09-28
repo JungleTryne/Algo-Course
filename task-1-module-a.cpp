@@ -53,6 +53,7 @@ void SubstringFinder<OutputIterator>::AddTextCharacter(char new_char) {
         FindPrefixFunc();
         if (prefix_func_.back() == pattern_.size()) {
             *out_stream_ = 0;
+            ++out_stream_;
         }
     }
     UpdatePrefixFunc(new_char);
@@ -105,6 +106,7 @@ void SubstringFinder<OutputIterator>::FindPrefixFunc() {
 template <typename OutputIterator>
 void SubstringFinder<OutputIterator>::SavePatternPosition(size_t pos) {
     *out_stream_ = pos;
+    ++out_stream_;
 }
 
 int main() {
