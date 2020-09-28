@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <iostream>
+#include <iterator>
 #include <unordered_map>
 #include <vector>
 #include <memory>
@@ -41,7 +42,9 @@ private:
         -> std::pair<std::vector<std::string>, std::vector<size_t>>;
 public:
     explicit TemplateFinder(const std::string& pattern);
-    void FindEntries(const std::string& text, std::ostream& out);
+
+    template<typename OutputIterator>
+    void FindEntries(const std::string& text, OutputIterator& out);
 };
 
 /* Функция добавление подшаблона в бор */
@@ -145,7 +148,8 @@ auto TemplateFinder::GetShrunkSuffix(const std::shared_ptr<TemplateFinder::Node>
 }
 
 /* Main algorithm function - finding pattern in the text  */
-void TemplateFinder::FindEntries(const std::string &text, std::ostream& out) {
+template<typename OutputIterator>
+void TemplateFinder::FindEntries(const std::string &text, OutputIterator& out) {
     std::shared_ptr<Node> current_p = root_;
     std::vector<size_t> pattern_entries(text.size());
     
@@ -160,7 +164,8 @@ void TemplateFinder::FindEntries(const std::string &text, std::ostream& out) {
 
     for (size_t char_pos = 0; char_pos < pattern_entries.size(); ++char_pos) {
         if (pattern_entries[char_pos] == subpattern_count_ && char_pos + pattern_.size() < text.size() + 1) {
-            out << char_pos << ' ';
+            *out = char_pos;
+            ++out;
         }
     }
 }
@@ -192,7 +197,9 @@ int main() {
     std::cin >> text_template >> text;
 
     TemplateFinder finder(text_template);
-    finder.FindEntries(text, std::cout);
+
+    auto out_iter = std::ostream_iterator<size_t>(std::cout, " ");
+    finder.FindEntries(text, out_iter);
 
     std::cout << std::endl;
     return 0;
