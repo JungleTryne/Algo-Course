@@ -23,34 +23,36 @@ private:
     };
 
     size_t subpattern_count_ = 0;
-    std::string pattern_;
+    size_t pattern_size_;
 
     std::shared_ptr<Node> root_;
     std::vector<std::shared_ptr<Node>> nodes_;
 
+    char splitter_;
+
     void AddSubTemplate(const std::string& subtemplate, size_t word_bias);
     void ProcessShrunk(const std::shared_ptr<Node>& current_p, size_t char_pos, std::vector<size_t>& pattern_entries);
 
-    auto GetSuffix(const std::shared_ptr<TemplateFinder::Node>& current_p) -> std::shared_ptr<Node>;
-    auto GoDelta(const std::shared_ptr<Node>& current_p, char c) -> std::shared_ptr<Node> ;
-    auto GetShrunkSuffix(const std::shared_ptr<Node>& current_p) -> std::shared_ptr<Node>;
+    std::shared_ptr<Node> GetSuffix(const std::shared_ptr<Node>& current_p);
+    std::shared_ptr<Node> GoDelta(const std::shared_ptr<Node>& current_p, char c);
+    std::shared_ptr<Node> GetShrunkSuffix(const std::shared_ptr<Node>& current_p);
 
-    static auto UpdateEntries(const std::shared_ptr<Node>& current_p, size_t char_position,
-                              std::vector<size_t>& pattern_entries) -> void;
+    static void UpdateEntries(const std::shared_ptr<Node>& current_p, size_t char_position,
+                              std::vector<size_t>& pattern_entries);
 
-    static auto split(const std::string& text, char splitter)
+    static auto Split(const std::string& text, char splitter)
         -> std::pair<std::vector<std::string>, std::vector<size_t>>;
 public:
-    explicit TemplateFinder(const std::string& pattern);
+    explicit TemplateFinder(const std::string& pattern, char splitter);
 
     template<typename OutputIterator>
     void FindEntries(const std::string& text, OutputIterator& out);
 };
 
-/* Функция добавление подшаблона в бор */
+/* Adding subtemplate to trie */
 void TemplateFinder::AddSubTemplate(const std::string &subtemplate, size_t word_bias) {
     auto p_current = root_;
-    for (const auto& c : subtemplate) {
+    for (char c : subtemplate) {
         if (p_current->transitions_.find(c) == p_current->transitions_.end()) {
             p_current->transitions_[c] = std::make_shared<Node>();
             p_current->transitions_[c]->parent_ = p_current;
@@ -65,17 +67,18 @@ void TemplateFinder::AddSubTemplate(const std::string &subtemplate, size_t word_
     ++subpattern_count_;
 }
 
-TemplateFinder::TemplateFinder(const std::string& pattern) : pattern_(pattern) {
+TemplateFinder::TemplateFinder(const std::string& pattern, char splitter) : pattern_size_(pattern.size()),
+                                                                            splitter_(splitter) {
     root_ = std::make_shared<Node>();
     nodes_.push_back(root_);
-    auto [split_text, bias] = split(pattern, '?');
+    auto [split_text, bias] = Split(pattern, splitter_);
     for (size_t i = 0; i < split_text.size(); ++i) {
         AddSubTemplate(split_text[i], bias[i]);
     }
 }
 
 /* Splitting the template to subtemplates */
-auto TemplateFinder::split(const std::string &text, char splitter)
+auto TemplateFinder::Split(const std::string &text, char splitter)
     -> std::pair<std::vector<std::string>, std::vector<size_t>>
 {
     std::vector<std::string> split_text;
@@ -83,7 +86,7 @@ auto TemplateFinder::split(const std::string &text, char splitter)
     std::string buffer;
 
     size_t counter = 0;
-    for (const auto& c : text) {
+    for (char c : text) {
         if (c == splitter && !buffer.empty()) {
             bias.push_back(counter - buffer.size());
             split_text.push_back(buffer);
@@ -101,8 +104,8 @@ auto TemplateFinder::split(const std::string &text, char splitter)
 }
 
 /* Getting suffix link of the node */
-auto TemplateFinder::GetSuffix(const std::shared_ptr<TemplateFinder::Node>& current_p)
-    -> std::shared_ptr<TemplateFinder::Node>
+auto TemplateFinder::GetSuffix(const std::shared_ptr<Node>& current_p)
+    -> std::shared_ptr<Node>
 {
     if (!current_p->suffix_) {
         if (current_p == root_ || current_p->parent_ == root_) {
@@ -115,8 +118,8 @@ auto TemplateFinder::GetSuffix(const std::shared_ptr<TemplateFinder::Node>& curr
 }
 
 /* Delta function of automata */
-auto TemplateFinder::GoDelta(const std::shared_ptr<TemplateFinder::Node>& current_p, char c)
-    -> std::shared_ptr<TemplateFinder::Node>
+auto TemplateFinder::GoDelta(const std::shared_ptr<Node>& current_p, char c)
+    -> std::shared_ptr<Node>
 {
     if (current_p->delta_function_.find(c) == current_p->delta_function_.end()) {
         if (current_p->transitions_.find(c) != current_p->transitions_.end()) {
@@ -131,8 +134,8 @@ auto TemplateFinder::GoDelta(const std::shared_ptr<TemplateFinder::Node>& curren
 }
 
 /* Getting shrunk suffix link of the node */
-auto TemplateFinder::GetShrunkSuffix(const std::shared_ptr<TemplateFinder::Node>& current_p)
-    -> std::shared_ptr<TemplateFinder::Node>
+auto TemplateFinder::GetShrunkSuffix(const std::shared_ptr<Node>& current_p)
+    -> std::shared_ptr<Node>
 {
     if (!current_p->shrink_suffix_) {
         std::shared_ptr<Node> suffix_link = GetSuffix(current_p);
@@ -163,7 +166,7 @@ void TemplateFinder::FindEntries(const std::string &text, OutputIterator& out) {
     }
 
     for (size_t char_pos = 0; char_pos < pattern_entries.size(); ++char_pos) {
-        if (pattern_entries[char_pos] == subpattern_count_ && char_pos + pattern_.size() < text.size() + 1) {
+        if (pattern_entries[char_pos] == subpattern_count_ && char_pos + pattern_size_ < text.size() + 1) {
             *out = char_pos;
             ++out;
         }
@@ -196,7 +199,7 @@ int main() {
     std::string text;
     std::cin >> text_template >> text;
 
-    TemplateFinder finder(text_template);
+    TemplateFinder finder(text_template, '?');
 
     auto out_iter = std::ostream_iterator<size_t>(std::cout, " ");
     finder.FindEntries(text, out_iter);
