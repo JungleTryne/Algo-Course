@@ -21,7 +21,7 @@ struct Point {
     bool operator!=(const Point& other) const;
 
     [[nodiscard]] double getLength() const;
-    PointType getScalar(const Point& other) const;
+    [[nodiscard]] PointType getScalar(const Point& other) const;
 };
 
 template<typename PointType>
@@ -125,12 +125,16 @@ struct Event {
     Segment<PointType> segment;
 
     Event(PointType x_coord, EventType type, Segment<PointType> segment) : x_coord(x_coord), type(type), segment(segment) {}
-    bool operator<(const Event& other);
+    bool operator<(const Event& other) const;
 };
 
 template<typename PointType>
-bool Event<PointType>::operator<(const Event &other) {
-    return std::abs(this->x_coord - other.x_coord) < eps ? this->type < other.type : this->x_coord < other.x_coord;
+bool Event<PointType>::operator<(const Event &other) const {
+    if constexpr (std::is_same<PointType, double>::value) {
+        return std::abs(this->x_coord - other.x_coord) < eps ? this->type < other.type : this->x_coord <= other.x_coord - eps;
+    } else {
+        return this->x_coord == other.x_coord ? this->type < other.type : this->x_coord < other.x_coord;
+    }
 }
 
 template<typename PointType>
@@ -153,7 +157,7 @@ std::optional<std::pair<Segment<PointType>, Segment<PointType>>> IntersectionFin
         events.push_back(Event(std::min(segment.first.x, segment.second.x), EventType::NEW_SEG, segment));
         events.push_back(Event(std::max(segment.first.x, segment.second.x), EventType::END_SEG, segment));
     }
-    std::sort(events.begin(), events.end());
+    std::stable_sort(events.begin(), events.end());
 
     for(auto event : events) {
         auto currentSegment = event.segment;
@@ -201,9 +205,17 @@ int main() {
     auto answer = finder.IsThereIntersection();
     if(answer.has_value()) {
         std::cout << "YES" << std::endl;
-        auto [first, second] = *answer;
+        const auto [first, second] = *answer;
         auto first_pos  = std::find(segments.begin(), segments.end(), first);
-        auto second_pos = std::find(segments.begin(), segments.end(), second);
+
+        auto second_pos = segments.end();
+        for(auto pos = segments.begin(); pos != segments.end(); ++pos) {
+            if(*pos == second && pos != first_pos) {
+                second_pos = pos;
+                break;
+            }
+        }
+
         if(std::distance(first_pos, second_pos) < 0) {
             std::swap(first_pos, second_pos);
         }
