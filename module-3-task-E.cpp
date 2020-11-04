@@ -2,11 +2,9 @@
 #include <iostream>
 #include <set>
 #include <type_traits>
-#include <unordered_map>
 #include <vector>
 
 const double eps = 1e-9;
-const double pi = 3.14159265358979323;
 
 template<typename PointType>
 struct Point {
@@ -19,9 +17,6 @@ struct Point {
 
     bool operator==(const Point& other) const;
     bool operator!=(const Point& other) const;
-
-    [[nodiscard]] double getLength() const;
-    [[nodiscard]] PointType getScalar(const Point& other) const;
 };
 
 template<typename PointType>
@@ -39,16 +34,6 @@ bool Point<PointType>::operator!=(const Point<PointType> &other) const {
     return !(*this == other);
 }
 
-template<typename PointType>
-double Point<PointType>::getLength() const {
-    return sqrt(this->x * this->x + this->y * this->y);
-}
-
-template<typename PointType>
-PointType Point<PointType>::getScalar(const Point& other) const {
-    return this->x*other.x + this->y*other.y;
-}
-
 //Вычитаем точки как вектора
 template<typename PointType>
 Point<PointType> operator-(const Point<PointType>& one, const Point<PointType>& two) {
@@ -61,11 +46,6 @@ template<typename PointType>
 Point<PointType> operator+(const Point<PointType>& one, const Point<PointType>& two) {
     Point newPoint(one.x + two.x, one.y + two.y);
     return newPoint;
-}
-
-template<typename PointType>
-double GetVectorsAngle(const Point<PointType>& one, const Point<PointType>& two) {
-    return acos((one.x*two.x + one.y*two.y)/(one.getLength()*two.getLength()));
 }
 
 template<typename PointType>
@@ -87,17 +67,20 @@ template<typename PointType>
 bool operator<(const Segment<PointType>& first, const Segment<PointType>& second) {
     PointType left_x = std::max(std::min(first.first.x, first.second.x), std::min(second.first.x, second.second.x));
 
-    auto relevant_y = [](const Segment<PointType>& segment, PointType x) -> PointType {
-        if(std::abs(segment.first.x - segment.second.x) < eps) return segment.first.y;
-        double tangent = (segment.first.y - segment.second.y) / (segment.first.x - segment.second.x);
-        return segment.first.y + tangent * (x - segment.first.x);
+    auto relevant_y = [](const Segment<PointType>& segment, PointType x) -> double {
+        if constexpr (std::is_same<PointType, double>::value) {
+            if(std::abs(segment.first.x - segment.second.x) < eps) return segment.first.y;
+        } else {
+            if(segment.first.x == segment.second.x) return segment.first.y;
+        }
+
+        double tangent = static_cast<double>(segment.first.y - segment.second.y) /
+                static_cast<double>(segment.first.x - segment.second.x);
+
+        return static_cast<double>(segment.first.y) + tangent * static_cast<double>(x - segment.first.x);
     };
 
-    if constexpr (std::is_same<PointType, double>::value) {
-        return relevant_y(first, left_x) < relevant_y(second, left_x) - eps;
-    } else {
-        return relevant_y(first, left_x) < relevant_y(second, left_x);
-    }
+    return relevant_y(first, left_x) < relevant_y(second, left_x) - eps;
 }
 
 template<typename PointType>
