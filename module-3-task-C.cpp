@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cassert>
 #include <cmath>
 #include <iostream>
 #include <type_traits>
@@ -124,7 +125,22 @@ struct Hull {
     Point<PointType> third;
     explicit Hull(const Point<PointType>& first, const Point<PointType>& second, const Point<PointType>& third) :
             first(first), second(second), third(third) {}
+
+    Point<PointType> GetOtherPoint(const Point<PointType>& edge_first, const Point<PointType>& edge_second) const;
 };
+
+template<typename PointType>
+Point<PointType> Hull<PointType>::GetOtherPoint(const Point<PointType> &edge_first,
+                                                const Point<PointType> &edge_second) const {
+    if(first == edge_first && second == edge_second) return third;
+    if(first == edge_second && second == edge_first) return third;
+    if(first == edge_first && third == edge_second) return second;
+    if(first == edge_second && third == edge_first) return second;
+    if(second == edge_first && third == edge_second) return first;
+    if(second == edge_second && third == edge_first) return first;
+
+    assert(false);
+}
 
 template <typename PointType>
 struct Edge {
@@ -141,8 +157,8 @@ private:
 
     Hull<int64_t> GetFirstHull() const;
 
-    double GetHullDegree(const Hull<int64_t> &first, const Hull<int64_t> &second, const Point<int64_t> &common_first,
-                         const Point<int64_t> &common_second) const;
+    double GetHullDegree(const Point<int64_t> &common_first, const Point<int64_t> &common_second,
+                         const Point<int64_t> &first, const Point<int64_t> &second) const;
     bool IsUsed(const Edge<int64_t>& edge) const;
     void Use(const Edge<int64_t>& edge);
 public:
@@ -187,6 +203,8 @@ void ConvexHullBuilder::BuildHull() {
 
     while (!edge_queue.empty()) {
         auto [edge, hull] = edge_queue.front();
+        auto thirdVertex = hull.GetOtherPoint(edge.first, edge.second);
+
         edge_queue.pop();
 
         if(IsUsed(edge)) {
@@ -199,7 +217,8 @@ void ConvexHullBuilder::BuildHull() {
         for(auto point : points) {
             if(point != edge.first && point != edge.second) {
                 auto newHull = Hull(edge.first, edge.second, point);
-                double angle = GetHullDegree(hull, newHull, edge.first, edge.second);
+
+                double angle = GetHullDegree(edge.first, edge.second, thirdVertex, point);
                 if(angle > bestAngle) {
                     bestAngle = angle;
                     bestHull = newHull;
@@ -215,11 +234,24 @@ void ConvexHullBuilder::BuildHull() {
     }
 }
 
-double ConvexHullBuilder::GetHullDegree(const Hull<int64_t> &first, const Hull<int64_t> &second,
-                                        const Point<int64_t> &common_first,
-                                        const Point<int64_t> &common_second) const {
+double ConvexHullBuilder::GetHullDegree(const Point<int64_t> &common_first, const Point<int64_t> &common_second,
+                                        const Point<int64_t> &first, const Point<int64_t> &second) const {
     /* It's definite that first and second have common edge! */
+    Point<int64_t> first_vector  = common_second - common_first;
+    Point<int64_t> second_vector = common_second - first;
+    Point<int64_t> third_vector  = common_second - second;
 
+    auto scalar_second = GetDotProduct(first_vector, second_vector);
+    auto scalar_third  = GetDotProduct(first_vector, third_vector);
+
+    Point<double> orthoSecond = static_cast<Point<double>>(second_vector) -
+        scalar_second*static_cast<Point<double>>(first_vector)*(1/first_vector.GetLength());
+
+    Point<double> orthoThird = static_cast<Point<double>>(third_vector) -
+        scalar_third*static_cast<Point<double>>(first_vector)*(1/first_vector.GetLength());
+
+    auto scalar_angle = GetDotProduct(orthoThird, orthoSecond);
+    return acos(scalar_angle/(orthoSecond.GetLength()*orthoThird.GetLength()));
 }
 
 int main() {
