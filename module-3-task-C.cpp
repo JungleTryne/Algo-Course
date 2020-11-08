@@ -1,12 +1,13 @@
-#include <algorithm>
+#include <bits/stdc++.h>
 #include <cassert>
 #include <cmath>
 #include <iostream>
 #include <type_traits>
-#include <set>
+#include <unordered_set>
 #include <queue>
 
 const double eps = 1e-9;
+const int32_t max_coordinate = 10000;
 
 template<typename PointType>
 struct Point {
@@ -22,8 +23,19 @@ struct Point {
     bool operator!=(const Point& other) const;
     explicit operator Point<double>() const;
 
-    double GetLength() const;
+    [[nodiscard]] double GetLength() const;
 };
+
+namespace std {
+    template <> struct hash<Point<int32_t>> {
+        size_t operator()(const Point<int32_t>& point) const {
+            size_t x_hash = point.x;
+            size_t y_hash = 31*point.y;
+            size_t z_hash = 127*point.z;
+            return x_hash ^ y_hash ^ z_hash;
+        }
+    };
+}
 
 
 template<typename PointType>
@@ -53,14 +65,12 @@ Point<PointType>::operator Point<double>() const {
     return Point<double>(static_cast<double>(x), static_cast<double>(y), static_cast<double>(z));
 }
 
-//Вычитаем точки как вектора
 template<typename PointType>
 Point<PointType> operator-(const Point<PointType>& one, const Point<PointType>& two) {
     Point newPoint(one.x - two.x, one.y - two.y, one.z - two.z);
     return newPoint;
 }
 
-//Складываем точки как вектора
 template<typename PointType>
 Point<PointType> operator+(const Point<PointType>& one, const Point<PointType>& two) {
     Point newPoint(one.x + two.x, one.y + two.y, one.z + two.z);
@@ -92,7 +102,7 @@ struct Segment {
     bool operator==(const Segment<PointType>& other) {
         return this->first == other.first && this->second == other.second;
     }
-    double GetLength() const;
+    [[nodiscard]] double GetLength() const;
 };
 
 template<typename PointType>
@@ -127,6 +137,7 @@ struct Hull {
             first(first), second(second), third(third) {}
 
     Point<PointType> GetOtherPoint(const Point<PointType>& edge_first, const Point<PointType>& edge_second) const;
+    bool operator==(const Hull& other) const;
 };
 
 template<typename PointType>
@@ -142,34 +153,71 @@ Point<PointType> Hull<PointType>::GetOtherPoint(const Point<PointType> &edge_fir
     assert(false);
 }
 
+template<typename PointType>
+bool Hull<PointType>::operator==(const Hull &other) const {
+    std::unordered_set<Point<PointType>> first_points {first, second, third};
+    std::unordered_set<Point<PointType>> second_points {other.first, other.second, other.third};
+    return std::equal(first_points.begin(), first_points.end, second_points.begin());
+}
+
+namespace std {
+    template<> struct hash<Hull<int32_t>> {
+        size_t operator()(const Hull<int32_t>& hull) const {
+            size_t first_hash = std::hash<Point<int32_t>>()(hull.first);
+            size_t second_hash = std::hash<Point<int32_t>>()(hull.second);
+            size_t third_hash = std::hash<Point<int32_t>>()(hull.third);
+            return first_hash ^ second_hash ^ third_hash;
+        }
+    };
+}
+
 template <typename PointType>
 struct Edge {
     Point<PointType> first;
     Point<PointType> second;
     explicit Edge(const Point<PointType>& first, const Point<PointType>& second) :
             first(first), second(second) {}
+    bool operator==(const Edge<PointType>& other) const;
 };
+
+template<typename PointType>
+bool Edge<PointType>::operator==(const Edge<PointType> &other) const {
+    return (first == other.first && second == other.second) || (first == other.second && second == other.first);
+}
+
+namespace std {
+    template<> struct hash<Edge<int32_t>> {
+        size_t operator()(const Edge<int32_t>& edge) const {
+            size_t hash_first = std::hash<Point<int32_t>>()(edge.first);
+            size_t hash_second = std::hash<Point<int32_t>>()(edge.second);
+            return hash_first ^ hash_second;
+        }
+    };
+}
 
 class ConvexHullBuilder {
 private:
-    std::vector<Hull<int64_t>> hulls{};
-    std::vector<Point<int64_t>> points{};
+    std::vector<Hull<int32_t>> hulls{};
+    std::vector<Point<int32_t>> points{};
 
-    Hull<int64_t> GetFirstHull() const;
+    std::unordered_set<Edge<int32_t>> used_edges_;
 
-    double GetHullDegree(const Point<int64_t> &common_first, const Point<int64_t> &common_second,
-                         const Point<int64_t> &first, const Point<int64_t> &second) const;
-    bool IsUsed(const Edge<int64_t>& edge) const;
-    void Use(const Edge<int64_t>& edge);
+    [[nodiscard]] Hull<int32_t> GetFirstHull() const;
+
+    [[nodiscard]] double GetHullDegree(const Point<int32_t> &common_first, const Point<int32_t> &common_second,
+                         const Point<int32_t> &first, const Point<int32_t> &second) const;
+    bool IsUsed(const Edge<int32_t>& edge) const;
+    void Use(const Edge<int32_t>& edge);
 public:
-    explicit ConvexHullBuilder(const std::vector<Point<int64_t>>& points) : points(points) {}
+    explicit ConvexHullBuilder(const std::vector<Point<int32_t>>& points) : points(points) {}
     void BuildHull();
+    double GetShortestEscapeDistance(const Point<int32_t>& point) const;
 };
 
-Hull<int64_t> ConvexHullBuilder::GetFirstHull() const {
-    Point<int64_t> firstMinPoint  = points[0];
-    Point<int64_t> secondMinPoint = points[0];
-    Point<int64_t> thirdMinPoint  = points[0];
+Hull<int32_t> ConvexHullBuilder::GetFirstHull() const {
+    Point<int32_t> firstMinPoint  = Point(max_coordinate, max_coordinate, max_coordinate);
+    Point<int32_t> secondMinPoint = Point(max_coordinate, max_coordinate, max_coordinate);
+    Point<int32_t> thirdMinPoint  = Point(max_coordinate, max_coordinate, max_coordinate);
 
     for(auto point : points) {
         if(point.y < firstMinPoint.y || (point.y == firstMinPoint.y && point.x < firstMinPoint.x)) {
@@ -191,14 +239,14 @@ Hull<int64_t> ConvexHullBuilder::GetFirstHull() const {
             }
         }
     }
-    return Hull<int64_t>(firstMinPoint, secondMinPoint, thirdMinPoint);
+    return Hull<int32_t>(firstMinPoint, secondMinPoint, thirdMinPoint);
 }
 
 void ConvexHullBuilder::BuildHull() {
     auto firstHull = GetFirstHull();
     hulls.push_back(firstHull);
 
-    std::queue<std::pair<Edge<int64_t>, Hull<int64_t>>> edge_queue;
+    std::queue<std::pair<Edge<int32_t>, Hull<int32_t>>> edge_queue;
     edge_queue.push(std::make_pair(Edge{firstHull.first, firstHull.second}, firstHull));
 
     while (!edge_queue.empty()) {
@@ -212,34 +260,33 @@ void ConvexHullBuilder::BuildHull() {
         }
 
         double bestAngle = -1;
-        Hull bestHull = hull;
+        Point bestPoint = thirdVertex;
 
         for(auto point : points) {
             if(point != edge.first && point != edge.second) {
-                auto newHull = Hull(edge.first, edge.second, point);
-
                 double angle = GetHullDegree(edge.first, edge.second, thirdVertex, point);
                 if(angle > bestAngle) {
                     bestAngle = angle;
-                    bestHull = newHull;
+                    bestPoint = point;
                 }
             }
         }
-
-        hulls.push_back(bestHull);
-        edge_queue.push(std::make_pair(Edge{bestHull.first, bestHull.second}, bestHull));
-        edge_queue.push(std::make_pair(Edge{bestHull.first, bestHull.third}, bestHull));
-        edge_queue.push(std::make_pair(Edge{bestHull.second, bestHull.third}, bestHull));
+        if(!(IsUsed(Edge{edge.first, bestPoint}) && IsUsed(Edge{edge.second, bestPoint}))) {
+            auto bestHull = Hull{edge.first, edge.second, bestPoint};
+            hulls.push_back(bestHull);
+            edge_queue.push(std::make_pair(Edge{bestHull.second, bestHull.third}, bestHull));
+            edge_queue.push(std::make_pair(Edge{bestHull.third, bestHull.first}, bestHull));
+        }
         Use(edge);
     }
 }
 
-double ConvexHullBuilder::GetHullDegree(const Point<int64_t> &common_first, const Point<int64_t> &common_second,
-                                        const Point<int64_t> &first, const Point<int64_t> &second) const {
+double ConvexHullBuilder::GetHullDegree(const Point<int32_t> &common_first, const Point<int32_t> &common_second,
+                                        const Point<int32_t> &first, const Point<int32_t> &second) const {
     /* It's definite that first and second have common edge! */
-    Point<int64_t> first_vector  = common_second - common_first;
-    Point<int64_t> second_vector = common_second - first;
-    Point<int64_t> third_vector  = common_second - second;
+    Point<int32_t> first_vector  = common_second - common_first;
+    Point<int32_t> second_vector = first - common_first;
+    Point<int32_t> third_vector  = second - common_first;
 
     auto scalar_second = GetDotProduct(first_vector, second_vector);
     auto scalar_third  = GetDotProduct(first_vector, third_vector);
@@ -254,6 +301,39 @@ double ConvexHullBuilder::GetHullDegree(const Point<int64_t> &common_first, cons
     return acos(scalar_angle/(orthoSecond.GetLength()*orthoThird.GetLength()));
 }
 
-int main() {
+bool ConvexHullBuilder::IsUsed(const Edge<int32_t> &edge) const {
+    return used_edges_.find(edge) != used_edges_.end();
+}
 
+void ConvexHullBuilder::Use(const Edge<int32_t> &edge) {
+    used_edges_.insert(edge);
+}
+
+double GetDistanceBetweenPlaneAndPoint(const Point<int32_t>& first, const Point<int32_t>& second,
+                                       const Point<int32_t>& third, const Point<int32_t>& fourth) {
+
+}
+
+double ConvexHullBuilder::GetShortestEscapeDistance(const Point<int32_t> &point) const {
+    for(auto hull : hulls) {
+
+    }
+}
+
+int main() {
+    size_t number_of_points = 0;
+    std::cin >> number_of_points;
+
+    std::vector<Point<int32_t>> points;
+    for(size_t i = 0; i < number_of_points; ++i) {
+        int32_t x = 0;
+        int32_t y = 0;
+        int32_t z = 0;
+        std::cin >> x >> y >> z;
+        points.emplace_back(x, y, z);
+    }
+
+    ConvexHullBuilder builder(points);
+    builder.BuildHull();
+    return 0;
 }
