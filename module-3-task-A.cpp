@@ -1,10 +1,11 @@
 #include <algorithm>
 #include <cmath>
 #include <iostream>
-#include <type_traits>
 #include <iomanip>
 
-const double eps = 1e-9;
+constexpr double eps() {
+    return 1e-9;
+}
 
 template<typename PointType>
 struct Point {
@@ -13,8 +14,6 @@ struct Point {
     PointType z;
 
     explicit Point(PointType x=0, PointType y=0, PointType z=0) : x(x), y(y), z(z) {};
-    Point(const Point& other) = default;
-    ~Point() = default;
 
     bool operator==(const Point& other) const;
     bool operator!=(const Point& other) const;
@@ -26,14 +25,14 @@ struct Point {
 
 template<typename PointType>
 bool Point<PointType>::operator==(const Point &other) const {
-    if constexpr (std::is_same<PointType, double>::value) {
-        return  std::abs(this->x - other.x) <= eps &&
-                std::abs(this->y - other.y) <= eps &&
-                std::abs(this->z - other.z) <= eps;
-    } else {
-        return this->x == other.x && this->y == other.y && this->z == other.z;
-    }
+    return this->x == other.x && this->y == other.y && this->z == other.z;
+}
 
+template<>
+bool Point<double>::operator==(const Point &other) const {
+    return  std::abs(this->x - other.x) <= eps() &&
+            std::abs(this->y - other.y) <= eps() &&
+            std::abs(this->z - other.z) <= eps();
 }
 
 template<typename PointType>
@@ -51,30 +50,28 @@ Point<PointType>::operator Point<double>() const {
     return Point<double>(static_cast<double>(x), static_cast<double>(y), static_cast<double>(z));
 }
 
-//Вычитаем точки как вектора
 template<typename PointType>
 Point<PointType> operator-(const Point<PointType>& one, const Point<PointType>& two) {
-    Point newPoint(one.x - two.x, one.y - two.y, one.z - two.z);
-    return newPoint;
+    Point new_point(one.x - two.x, one.y - two.y, one.z - two.z);
+    return new_point;
 }
 
-//Складываем точки как вектора
 template<typename PointType>
 Point<PointType> operator+(const Point<PointType>& one, const Point<PointType>& two) {
-    Point newPoint(one.x + two.x, one.y + two.y, one.z + two.z);
-    return newPoint;
+    Point new_point(one.x + two.x, one.y + two.y, one.z + two.z);
+    return new_point;
 }
 
 template<typename PointType>
 Point<PointType> operator*(const Point<PointType>& one, PointType scalar) {
-    Point newPoint(one.x*scalar, one.y*scalar, one.z*scalar);
-    return newPoint;
+    Point new_point(one.x*scalar, one.y*scalar, one.z*scalar);
+    return new_point;
 }
 
 template<typename PointType>
 Point<PointType> operator*(double scalar, const Point<PointType>& one) {
-    Point newPoint(one.x*scalar, one.y*scalar, one.z*scalar);
-    return newPoint;
+    Point new_point(one.x*scalar, one.y*scalar, one.z*scalar);
+    return new_point;
 }
 
 template<typename PointType>
@@ -141,9 +138,9 @@ private:
     double HandleParallelSegments();
     double HandleCrossingSegments();
 
-    double GetDistanceBetweenPointAndSegment(const Point<int64_t>& point, const Segment<int64_t> segment);
+    double GetDistanceBetweenPointAndSegment(const Point<int64_t>& point, const Segment<int64_t>& segment);
 
-    auto GetCoefficients() const -> std::pair<double, double>;
+    std::pair<double, double> GetCoefficients() const;
 
 public:
     explicit DistanceFinder(const Segment<int64_t>& first, const Segment<int64_t>& second) : first_(first),
@@ -152,9 +149,9 @@ public:
     double FindDistance();
 };
 
-double DistanceFinder::GetDistanceBetweenPointAndSegment(const Point<int64_t> &point, const Segment<int64_t> segment) {
+double DistanceFinder::GetDistanceBetweenPointAndSegment(const Point<int64_t> &point, const Segment<int64_t>& segment) {
     auto deltaPoint = point - segment.first;
-    if(std::abs((segment.second - segment.first).GetLength()) < eps) {
+    if(std::abs((segment.second - segment.first).GetLength()) < eps()) {
         return (point - segment.second).GetLength();
     }
     auto normalDeltaSegment = GetNormal(segment.second - segment.first);
@@ -188,7 +185,7 @@ double DistanceFinder::FindDistance() {
     denominator = denominator*denominator;
 
     if(denominator == 0) {
-        auto result = HandleParallelSegments();
+        double result = HandleParallelSegments();
         return result;
     }
 
@@ -217,7 +214,7 @@ double DistanceFinder::HandleParallelSegments() {
         static_cast<Point<double>>(second_.first)).GetLength();
 }
 
-auto DistanceFinder::GetCoefficients() const -> std::pair<double, double>
+std::pair<double, double> DistanceFinder::GetCoefficients() const
 {
     auto edgeDelta = second_.first - first_.first;
 
