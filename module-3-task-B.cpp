@@ -54,7 +54,7 @@ private:
     std::vector<Point> belowLine_;
 
     void HandleLoop(bool above, const Point& point);
-
+    void RemoveDuplicates();
 public:
     [[maybe_unused]] explicit ConvexHullHandler(const std::vector<Point> &points) : points_(points) {}
     explicit ConvexHullHandler(std::vector<Point>&& points) : points_(std::move(points)) {}
@@ -90,6 +90,7 @@ void ConvexHullHandler::HandleLoop(bool above, const Point& point) {
 void ConvexHullHandler::BuildConvexHull() {
     aboveLine_.resize(0);
     belowLine_.resize(0);
+    RemoveDuplicates();
 
     std::sort(points_.begin(), points_.end(), [](const Point& left, const Point& right) {
         return left.x < right.x || (left.x == right.x && left.y < right.y);
@@ -126,20 +127,28 @@ double ConvexHullHandler::GetConvexHullLength() const {
     return result;
 }
 
+void ConvexHullHandler::RemoveDuplicates() {
+    std::set<std::pair<PointType, PointType>> pointsFilter;
+    for(const auto& point : points_) {
+        pointsFilter.insert(std::make_pair(point.x, point.y));
+    }
+    std::vector<Point> filtered = {};
+    for(auto [x, y] : pointsFilter) {
+        filtered.emplace_back(x, y);
+    }
+    points_ = filtered;
+}
+
+
 int main() {
     size_t number_of_points = 0;
     std::cin >> number_of_points;
-    std::set<std::pair<PointType, PointType>> points_filter;
+    std::vector<Point> points;
 
     for(size_t i = 0; i < number_of_points; ++i) {
         PointType x, y;
         std::cin >> x >> y;
-        points_filter.insert({x, y});
-    }
-
-    std::vector<Point> points;
-    for(auto [x,y] : points_filter) {
-        points.push_back(Point{x,y});
+        points.emplace_back(x, y);
     }
 
     ConvexHullHandler builder(std::move(points));
