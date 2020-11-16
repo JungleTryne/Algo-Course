@@ -5,7 +5,7 @@
 #include <iostream>
 #include <iomanip>
 
-//Структура точки
+//Point struct
 template<typename Type>
 struct GeneralPoint {
     Type x;
@@ -19,48 +19,65 @@ struct GeneralPoint {
 using PointType = int64_t;
 using Point = GeneralPoint<PointType>;
 
-/* If return > 0 -> OAB -- counter-clockwise turn
- * if return == 0 -> collinear
- * if return < 0 -> OAB -- clockwise turn
- */
-double CrossProduct(const Point& first, const Point& second, const Point& third) {
+int64_t CrossProduct(const Point& first, const Point& second, const Point& third) {
     return (second.x - first.x) * (third.y - first.y) - (second.y - first.y) * (third.x - first.x);
+}
+
+enum class TurnType {
+    COUNTER_CLOCKWISE,
+    CLOCKWISE,
+    COLLINEAR
+};
+
+TurnType GetTurnType(const Point& first, const Point& second, const Point& third) {
+    int64_t crossProduct = CrossProduct(first, second, third);
+    if(crossProduct > 0) {
+        return TurnType::COUNTER_CLOCKWISE;
+    } else if(crossProduct < 0) {
+        return TurnType::CLOCKWISE;
+    }
+    return TurnType::COLLINEAR;
 }
 
 double GetLength(const Point& first, const Point& second) {
     return std::sqrt(std::pow((second.x - first.x), 2) + std::pow((second.y - first.y), 2));
 }
 
-class ConvexHullBuilder {
+class ConvexHullHandler {
 private:
-    std::vector<Point> points;
+    std::vector<Point> points_;
 
-    Point first_point;
-    Point second_point;
+    Point firstPoint_;
+    Point secondPoint_;
 
-    std::vector<Point> above_line;
-    std::vector<Point> below_line;
+    std::vector<Point> aboveLine_;
+    std::vector<Point> belowLine_;
 
     void HandleLoop(bool above, const Point& point);
 
 public:
-    [[maybe_unused]] explicit ConvexHullBuilder(const std::vector<Point> &points) : points(points) {}
-    explicit ConvexHullBuilder(std::vector<Point>&& points) : points(std::move(points)) {}
+    [[maybe_unused]] explicit ConvexHullHandler(const std::vector<Point> &points) : points_(points) {}
+    explicit ConvexHullHandler(std::vector<Point>&& points) : points_(std::move(points)) {}
 
-    double GetConvexHullLength();
+    void BuildConvexHull();
+    double GetConvexHullLength() const;
 };
 
-void ConvexHullBuilder::HandleLoop(bool above, const Point& point) {
-    auto ConvexHullBuilder::*current_vector = above ?
-            &ConvexHullBuilder::above_line : &ConvexHullBuilder::below_line;
+void ConvexHullHandler::HandleLoop(bool above, const Point& point) {
+    auto ConvexHullHandler::*current_vector = above ?
+                                              &ConvexHullHandler::aboveLine_ : &ConvexHullHandler::belowLine_;
 
     auto condition = above ?
-            [](const Point& first, const Point& second, const Point& third)
-                {return CrossProduct(first, second, third) <= 0;} :
             [](const Point& first, const Point& second, const Point& third) {
-                return CrossProduct(first, second, third) >= 0;};
+                TurnType type = GetTurnType(first, second, third);
+                return type == TurnType::CLOCKWISE || type == TurnType::COLLINEAR;
+            } :
+            [](const Point& first, const Point& second, const Point& third) {
+                TurnType type = GetTurnType(first, second, third);
+                return type == TurnType::COUNTER_CLOCKWISE || type == TurnType::COLLINEAR;
+            };
 
-    if(condition(first_point, point, second_point)) {
+    if(condition(firstPoint_, point, secondPoint_)) {
 
         while ((this->*current_vector).size() > 1 && !condition((this->*current_vector).rbegin()[1],
                                                                 (this->*current_vector).rbegin()[0], point)) {
@@ -70,35 +87,40 @@ void ConvexHullBuilder::HandleLoop(bool above, const Point& point) {
     }
 }
 
-double ConvexHullBuilder::GetConvexHullLength() {
-    std::sort(points.begin(), points.end(), [](const Point& left, const Point& right) {
+void ConvexHullHandler::BuildConvexHull() {
+    aboveLine_.resize(0);
+    belowLine_.resize(0);
+
+    std::sort(points_.begin(), points_.end(), [](const Point& left, const Point& right) {
         return left.x < right.x || (left.x == right.x && left.y < right.y);
     });
 
-    first_point  = points.front();
-    second_point = points.back();
+    firstPoint_  = points_.front();
+    secondPoint_ = points_.back();
 
-    above_line.push_back(first_point);
-    below_line.push_back(first_point);
+    aboveLine_.push_back(firstPoint_);
+    belowLine_.push_back(firstPoint_);
 
-    for (auto point : points) {
+    for (auto point : points_) {
         /* above line */
         HandleLoop(true, point);
         /* below line */
         HandleLoop(false, point);
     }
+}
 
+double ConvexHullHandler::GetConvexHullLength() const {
     double result = 0;
 
-    for(size_t i = 0; i < above_line.size() - 1 ;++i) {
-        result += GetLength(above_line[i], above_line[i+1]);
+    for(size_t i = 0; i < aboveLine_.size() - 1 ; ++i) {
+        result += GetLength(aboveLine_[i], aboveLine_[i + 1]);
     }
 
-    result += GetLength(above_line.back(), second_point);
-    result += GetLength(second_point, below_line.back());
+    result += GetLength(aboveLine_.back(), secondPoint_);
+    result += GetLength(secondPoint_, belowLine_.back());
 
-    for(size_t i = 0; i < below_line.size() - 1 ;++i) {
-        result += GetLength(below_line[i], below_line[i+1]);
+    for(size_t i = 0; i < belowLine_.size() - 1 ; ++i) {
+        result += GetLength(belowLine_[i], belowLine_[i + 1]);
     }
 
     return result;
@@ -120,7 +142,8 @@ int main() {
         points.push_back(Point{x,y});
     }
 
-    ConvexHullBuilder builder(std::move(points));
+    ConvexHullHandler builder(std::move(points));
+    builder.BuildConvexHull();
     double result = builder.GetConvexHullLength();
 
     std::cout << std::setprecision(15) << result;
