@@ -212,6 +212,7 @@ private:
         bool valid;
 
         std::optional<Point<double>> point;
+        BeachLineNode* archToDelete = nullptr;
 
         explicit Event(double sweep_line, EventType type, bool valid);
         bool operator<(const Event& other) const;
@@ -236,7 +237,7 @@ private:
 
         std::pair<Point<double>, Point<double>> archs_;
 
-        Event* circleEvent_ = nullptr;
+        std::shared_ptr<Event> circleEvent_ = nullptr;
         DCEL::HalfEdge* halfEdge_ = nullptr;
 
         BeachLineNode* next_ = nullptr;
@@ -260,6 +261,10 @@ private:
         BeachLineNode* GetNext() const { return this->next_; }
         Point<double> GetLeaf() const { return archs_.first; }
         BeachLineNode(BeachLineNode* parent, double* sweepLineCoord, std::pair<Point<double>, Point<double>> archs);
+
+        void SetCircleEvent(std::shared_ptr<Event> circleEvent) {
+            circleEvent_ = circleEvent;
+        }
     };
 
     class BeachLine {
@@ -267,7 +272,7 @@ private:
         double* sweepLineCoord_ = nullptr;
         std::unique_ptr<BeachLineNode> root = nullptr;
 
-        BeachLineNode* GetArchToInsertTo(const Point<double>& newFocus) const;
+        BeachLineNode* FindIntersectingArch(const Point<double>& newFocus) const;
         BeachLineNode* InsertToTheLeft(BeachLineNode* node, const Point<double>& newFocus);
         BeachLineNode* InsertToTheRight(BeachLineNode* node, const Point<double>& newFocus);
 
@@ -280,6 +285,9 @@ private:
         BeachLineNode* InsertNewArch(const Point<double>& newFocus);
         std::pair<BeachLineNode*, BeachLineNode*> DeleteArch(BeachLineNode* node);
         BeachLine(double* sweepLine) : sweepLineCoord_(sweepLine) {}
+
+        void printTree() const;
+
         friend VoronoiDiagramBuilder;
     };
 
@@ -291,7 +299,7 @@ private:
     void HandleSiteEvent(const Event& event);
     void HandleCircleEvent(const Event& event);
 
-    std::optional<Event> CheckCircleEvent(BeachLineNode* first, BeachLineNode* second, BeachLineNode* third) const;
+    std::shared_ptr<Event> CheckCircleEvent(BeachLineNode* first, BeachLineNode* second, BeachLineNode* third) const;
 
     BeachLine line{&sweepLineCoord_};
 
@@ -318,10 +326,11 @@ double VoronoiDiagramBuilder::BeachLineNode::GetValue() const {
             return intersections[0].x;
         }
 
-        if(first_point.x < second_point.x) {
-            return intersections[0].x;
+        if(first_point.y < second_point.y) {
+            return intersections[1].x;
         }
-        return intersections[1].x;
+        return intersections[0].x;
+
     }
 }
 
@@ -334,7 +343,7 @@ void VoronoiDiagramBuilder::BeachLineNode::line_print() const {
 
 
 VoronoiDiagramBuilder::BeachLineNode*
-VoronoiDiagramBuilder::BeachLine::GetArchToInsertTo(const Point<double> &newFocus) const {
+VoronoiDiagramBuilder::BeachLine::FindIntersectingArch(const Point<double> &newFocus) const {
     BeachLineNode* currentNode = root.get();
     while(!currentNode->IsLeaf()) {
         double value = currentNode->GetValue();
@@ -357,7 +366,7 @@ VoronoiDiagramBuilder::BeachLineNode* VoronoiDiagramBuilder::BeachLine::InsertNe
         root->height_ = 0;
         return root.get();
     }
-    BeachLineNode* ArchToBreak = GetArchToInsertTo(newFocus);
+    BeachLineNode* ArchToBreak = FindIntersectingArch(newFocus);
 
     if(ArchToBreak->circleEvent_) {
         ArchToBreak->circleEvent_->valid = false;
@@ -409,6 +418,13 @@ VoronoiDiagramBuilder::BeachLine::InsertToTheLeft(VoronoiDiagramBuilder::BeachLi
     leftNode->right_->next_ = node->right_.get();
     node->right_->next_ = node->next_;
 
+    if(node->next_) {
+        node->next_->prev_ = node->right_.get();
+    }
+    if(node->prev_) {
+        node->prev_->next_ = leftNode->left_.get();
+    }
+
     node->next_ = nullptr;
     node->prev_ = nullptr;
 
@@ -454,38 +470,49 @@ VoronoiDiagramBuilder::BeachLine::InsertToTheRight(VoronoiDiagramBuilder::BeachL
     rightNode->left_->prev_ = node->left_.get();
     node->left_->prev_ = node->prev_;
 
+    if(node->next_) {
+        node->next_->prev_ = rightNode->right_.get();
+    }
+    if(node->prev_) {
+        node->prev_->next_ = node->left_.get();
+    }
+
     node->next_ = nullptr;
     node->prev_ = nullptr;
 
     return rightNode->left_.get();
 }
 
-std::optional<VoronoiDiagramBuilder::Event> VoronoiDiagramBuilder::CheckCircleEvent(
+std::shared_ptr<VoronoiDiagramBuilder::Event> VoronoiDiagramBuilder::CheckCircleEvent(
         VoronoiDiagramBuilder::BeachLineNode *first,
         VoronoiDiagramBuilder::BeachLineNode *second,
         VoronoiDiagramBuilder::BeachLineNode *third) const
 {
     if(!(first && second && third)) {
-        return std::nullopt;
+        return nullptr;
     }
 
     auto first_point = first->GetLeaf();
     auto second_point = second->GetLeaf();
     auto third_point = third->GetLeaf();
 
-    //if(second_point.y > first_point.y && second_point.y > third_point.y) {
-    //    return std::nullopt;
-    //}
+    //checking the right turn
+    if((second_point.x - first_point.x) * (third_point.y - first_point.y) -
+            (third_point.x - first_point.x) * (second_point.y - first_point.y) > 0) {
+        return nullptr;
+    }
 
     auto circleCenter = GetCenterOfCircle(first_point, second_point, third_point);
     if(circleCenter.y - (circleCenter - first_point).GetLength() > sweepLineCoord_) {
-        return std::nullopt;
+        return nullptr;
     }
 
     double circleRadius = (circleCenter - first_point).GetLength();
-    Event circleEvent = Event(circleCenter.y - circleRadius, EventType::CIRCLE, true);
-    circleEvent.point = circleCenter;
+    std::shared_ptr<Event> circleEvent = std::make_shared<Event>(circleCenter.y - circleRadius, EventType::CIRCLE, true);
+    circleEvent->point = circleCenter;
+    circleEvent->archToDelete = second;
 
+    second->SetCircleEvent(circleEvent);
     return circleEvent;
 }
 
@@ -542,13 +569,15 @@ VoronoiDiagramBuilder::BeachLine::GetPrevNodeNeighbor(VoronoiDiagramBuilder::Bea
 auto VoronoiDiagramBuilder::BeachLine::DeleteArch(VoronoiDiagramBuilder::BeachLineNode *node)
     -> std::pair<BeachLineNode*, BeachLineNode*>
 {
-    BeachLineNode* currentNode = node;
-
     BeachLineNode* parent = node->parent_;
     assert(parent->parent_);
     auto superParent = parent->parent_;
 
-    if(parent->right_.get() == currentNode) {
+    auto focusToDelete = node->GetLeaf();
+    auto deletedPrev = node->prev_->GetLeaf();
+    auto deletedNext = node->next_->GetLeaf();
+
+    if(parent->right_.get() == node) {
         if(superParent->right_.get() == parent) {
             std::unique_ptr<BeachLineNode> newNode = std::make_unique<BeachLineNode>(superParent, sweepLineCoord_,
                 std::make_pair(superParent->right_->left_->GetLeaf(), superParent->right_->left_->GetLeaf()));
@@ -557,7 +586,6 @@ auto VoronoiDiagramBuilder::BeachLine::DeleteArch(VoronoiDiagramBuilder::BeachLi
             newNode->next_ = superParent->right_->right_->next_;
 
             superParent->right_.swap(newNode);
-            superParent->archs_.second = superParent->right_->GetLeaf();
 
             if(superParent->right_->prev_) {
                 superParent->right_->prev_->next_ = superParent->right_.get();
@@ -565,6 +593,15 @@ auto VoronoiDiagramBuilder::BeachLine::DeleteArch(VoronoiDiagramBuilder::BeachLi
             if(superParent->right_->next_) {
                 superParent->right_->next_->prev_ = superParent->right_.get();
             }
+
+            auto currentNode = superParent;
+            while(currentNode && !(currentNode->archs_.first == focusToDelete && currentNode->archs_.second == deletedNext)) {
+                currentNode = currentNode->parent_;
+            }
+            if(currentNode) {
+                currentNode->archs_ = std::make_pair(deletedPrev, deletedNext);
+            }
+
             return std::make_pair(superParent->right_.get(), superParent->right_->next_);
         } else {
             std::unique_ptr<BeachLineNode> newNode = std::make_unique<BeachLineNode>(superParent, sweepLineCoord_,
@@ -576,11 +613,20 @@ auto VoronoiDiagramBuilder::BeachLine::DeleteArch(VoronoiDiagramBuilder::BeachLi
             superParent->archs_.first = superParent->left_->GetLeaf();
 
             if(superParent->left_->prev_) {
-                superParent->left_->prev_->next_ = superParent->right_.get();
+                superParent->left_->prev_->next_ = superParent->left_.get();
             }
             if(superParent->left_->next_) {
-                superParent->left_->next_->prev_ = superParent->right_.get();
+                superParent->left_->next_->prev_ = superParent->left_.get();
             }
+
+            auto currentNode = superParent;
+            while(currentNode && !(currentNode->archs_.first == deletedPrev && currentNode->archs_.second == focusToDelete)) {
+                currentNode = currentNode->parent_;
+            }
+            if(currentNode) {
+                currentNode->archs_ = std::make_pair(deletedPrev, deletedNext);
+            }
+
             return std::make_pair(superParent->left_.get(), superParent->left_->next_);
         }
 
@@ -600,6 +646,15 @@ auto VoronoiDiagramBuilder::BeachLine::DeleteArch(VoronoiDiagramBuilder::BeachLi
             if(superParent->right_->next_) {
                 superParent->right_->next_->prev_ = superParent->right_.get();
             }
+
+            auto currentNode = superParent;
+            while(currentNode && !(currentNode->archs_.first == focusToDelete && currentNode->archs_.second == deletedNext)) {
+                currentNode = currentNode->parent_;
+            }
+            if(currentNode) {
+                currentNode->archs_ = std::make_pair(deletedPrev, deletedNext);
+            }
+
             return std::make_pair(superParent->right_->prev_, superParent->right_.get());
         } else {
             std::unique_ptr<BeachLineNode> newNode = std::make_unique<BeachLineNode>(superParent, sweepLineCoord_,
@@ -611,15 +666,23 @@ auto VoronoiDiagramBuilder::BeachLine::DeleteArch(VoronoiDiagramBuilder::BeachLi
             superParent->archs_.first = superParent->left_->GetLeaf();
 
             if(superParent->left_->prev_) {
-                superParent->left_->prev_->next_ = superParent->right_.get();
+                superParent->left_->prev_->next_ = superParent->left_.get();
             }
             if(superParent->left_->next_) {
-                superParent->left_->next_->prev_ = superParent->right_.get();
+                superParent->left_->next_->prev_ = superParent->left_.get();
             }
+
+            auto currentNode = superParent;
+            while(currentNode && !(currentNode->archs_.first == deletedPrev && currentNode->archs_.second == focusToDelete)) {
+                currentNode = currentNode->parent_;
+            }
+            if(currentNode) {
+                currentNode->archs_ = std::make_pair(deletedPrev, deletedNext);
+            }
+
             return std::make_pair(superParent->left_->prev_, superParent->left_.get());
         }
     }
-
 }
 
 void VoronoiDiagramBuilder::BeachLine::print_line() const {
@@ -633,6 +696,35 @@ void VoronoiDiagramBuilder::BeachLine::print_line() const {
     }
 }
 
+void VoronoiDiagramBuilder::BeachLine::printTree() const {
+    std::queue<std::pair<BeachLineNode*, size_t>> queue;
+    if(!this->root) {
+        return;
+    }
+
+    size_t currentLevel = 0;
+    queue.emplace(this->root.get(), 0);
+    while(!queue.empty()) {
+        auto currentNode = queue.front().first;
+        size_t poppedLevel = queue.front().second;
+        queue.pop();
+
+        if(currentLevel != poppedLevel) {
+            currentLevel = poppedLevel;
+            std::cout << std::endl;
+        }
+
+        std::cout << '[' << "(" << currentNode->archs_.first.x << ", " <<  currentNode->archs_.first.y << "), "
+            << "(" << currentNode->archs_.second.x << ", " <<  currentNode->archs_.second.y<< ")] ";
+        if(currentNode->left_.get()) {
+            queue.emplace(currentNode->left_.get(), poppedLevel + 1);
+            queue.emplace(currentNode->right_.get(), poppedLevel + 1);
+        }
+    }
+    std::cout << std::endl;
+    std::cout << std::endl;
+}
+
 void VoronoiDiagramBuilder::Build() {
     for(const auto& point : points_) {
         auto new_event = std::make_shared<Event>(point.y, EventType::SITE, true);
@@ -640,10 +732,6 @@ void VoronoiDiagramBuilder::Build() {
         queue_.push(std::move(new_event));
     }
     while(!queue_.empty()) {
-
-#ifdef DEBUG
-        line.print_line();
-#endif
 
         auto event = *queue_.top();
         queue_.pop();
@@ -659,6 +747,12 @@ void VoronoiDiagramBuilder::Build() {
         else {
             HandleCircleEvent(event);
         }
+
+#ifdef DEBUG
+        line.print_line();
+        //std::cout << "====================" << std::endl;
+        //line.printTree();
+#endif
     }
 }
 
@@ -672,7 +766,7 @@ void VoronoiDiagramBuilder::HandleSiteEvent(const VoronoiDiagramBuilder::Event &
         nextNextNewLeaf = nextNewLeaf->GetNext();
     }
 
-    std::optional<Event> firstCircleEvent = std::nullopt;
+    std::shared_ptr<Event> firstCircleEvent = nullptr;
 
     if(newLeaf && nextNewLeaf && nextNextNewLeaf) {
         firstCircleEvent = CheckCircleEvent(newLeaf, nextNewLeaf, nextNextNewLeaf);
@@ -684,18 +778,18 @@ void VoronoiDiagramBuilder::HandleSiteEvent(const VoronoiDiagramBuilder::Event &
         prevPrevNewLeaf = prevNewLeaf->GetPrev();
     }
 
-    std::optional<Event> secondCircleEvent = std::nullopt;
+    std::shared_ptr<Event> secondCircleEvent = nullptr;
 
     if(newLeaf && prevNewLeaf && prevPrevNewLeaf) {
-        secondCircleEvent = CheckCircleEvent(newLeaf, prevNewLeaf, prevPrevNewLeaf);
+        secondCircleEvent = CheckCircleEvent(prevPrevNewLeaf, prevNewLeaf, newLeaf);
     }
 
     if(firstCircleEvent) {
-        queue_.push(std::make_shared<Event>(*firstCircleEvent));
+        queue_.push(firstCircleEvent);
     }
 
     if(secondCircleEvent) {
-        queue_.push(std::make_shared<Event>(*secondCircleEvent));
+        queue_.push(secondCircleEvent);
     }
 
     //TODO: insert lines to Voronoi diagram
@@ -706,23 +800,20 @@ void VoronoiDiagramBuilder::HandleCircleEvent(const VoronoiDiagramBuilder::Event
     auto circleCenter = event.point;
 
     //to be able to find arch in the tree
-    sweepLineCoord_ += subeps();
 
-    BeachLineNode* nodeToDelete = line.GetArchToInsertTo(*circleCenter);
+    BeachLineNode* nodeToDelete = event.archToDelete;
     assert(nodeToDelete);
-
-    sweepLineCoord_ -= subeps();
 
     auto [prev, next] = line.DeleteArch(nodeToDelete);
 
     sweepLineCoord_ -= subeps();
 
-    std::optional<Event> firstCircleEvent = std::nullopt;
+    std::shared_ptr<Event> firstCircleEvent = nullptr;
     if(prev && prev->GetPrev() && prev->GetNext()) {
         firstCircleEvent = CheckCircleEvent(prev->GetPrev(), prev, prev->GetNext());
     }
 
-    std::optional<Event> secondCircleEvent = std::nullopt;
+    std::shared_ptr<Event> secondCircleEvent = nullptr;
     if(next && next->GetPrev() && next->GetNext()) {
         secondCircleEvent = CheckCircleEvent(next->GetPrev(), next, next->GetNext());
     }
@@ -730,11 +821,11 @@ void VoronoiDiagramBuilder::HandleCircleEvent(const VoronoiDiagramBuilder::Event
     sweepLineCoord_ += subeps();
 
     if(firstCircleEvent) {
-        queue_.push(std::make_shared<Event>(*firstCircleEvent));
+        queue_.push(firstCircleEvent);
     }
 
     if(secondCircleEvent) {
-        queue_.push(std::make_shared<Event>(*secondCircleEvent));
+        queue_.push(secondCircleEvent);
     }
 
     //TODO: insert vertex to Voronoi diagram
