@@ -220,7 +220,7 @@ private:
 
     struct SharedPtrComparator {
         bool operator()(const std::shared_ptr<Event>& first, const std::shared_ptr<Event>& second) const {
-            return (*(first->point)).y < (*(second->point)).y;
+            return first->sweep_line_coord < second->sweep_line_coord;
         }
     };
 
@@ -579,19 +579,22 @@ auto VoronoiDiagramBuilder::BeachLine::DeleteArch(VoronoiDiagramBuilder::BeachLi
 
     if(parent->right_.get() == node) {
         if(superParent->right_.get() == parent) {
-            std::unique_ptr<BeachLineNode> newNode = std::make_unique<BeachLineNode>(superParent, sweepLineCoord_,
-                std::make_pair(superParent->right_->left_->GetLeaf(), superParent->right_->left_->GetLeaf()));
+            auto next = superParent->right_->right_->next_;
 
-            newNode->prev_ = superParent->right_->left_->prev_;
-            newNode->next_ = superParent->right_->right_->next_;
+            superParent->right_->left_->parent_ = superParent;
 
-            superParent->right_.swap(newNode);
+            std::unique_ptr<BeachLineNode> tmp = nullptr;
+            tmp.swap(superParent->right_->left_);
+            tmp.swap(superParent->right_);
 
-            if(superParent->right_->prev_) {
-                superParent->right_->prev_->next_ = superParent->right_.get();
+            auto mostRight = superParent->right_.get();
+            while(mostRight->right_) {
+                mostRight = mostRight->right_.get();
             }
-            if(superParent->right_->next_) {
-                superParent->right_->next_->prev_ = superParent->right_.get();
+
+            mostRight->next_ = next;
+            if(next) {
+                next->prev_ = mostRight;
             }
 
             auto currentNode = superParent;
@@ -604,19 +607,22 @@ auto VoronoiDiagramBuilder::BeachLine::DeleteArch(VoronoiDiagramBuilder::BeachLi
 
             return std::make_pair(superParent->right_.get(), superParent->right_->next_);
         } else {
-            std::unique_ptr<BeachLineNode> newNode = std::make_unique<BeachLineNode>(superParent, sweepLineCoord_,
-                std::make_pair(superParent->left_->left_->GetLeaf(), superParent->left_->left_->GetLeaf()));
+            auto next = superParent->left_->right_->next_;
 
-            newNode->prev_ = superParent->left_->left_->prev_;
-            newNode->next_ = superParent->left_->right_->next_;
-            superParent->left_.swap(newNode);
-            superParent->archs_.first = superParent->left_->GetLeaf();
+            superParent->left_->left_->parent_ = superParent;
 
-            if(superParent->left_->prev_) {
-                superParent->left_->prev_->next_ = superParent->left_.get();
+            std::unique_ptr<BeachLineNode> tmp = nullptr;
+            tmp.swap(superParent->left_->left_);
+            tmp.swap(superParent->left_);
+
+            auto mostRight = superParent->left_.get();
+            while(mostRight->right_) {
+                mostRight = mostRight->right_.get();
             }
-            if(superParent->left_->next_) {
-                superParent->left_->next_->prev_ = superParent->left_.get();
+
+            mostRight->next_ = next;
+            if(next) {
+                next->prev_ = mostRight;
             }
 
             auto currentNode = superParent;
@@ -632,19 +638,22 @@ auto VoronoiDiagramBuilder::BeachLine::DeleteArch(VoronoiDiagramBuilder::BeachLi
 
     } else {
         if(superParent->right_.get() == parent) {
-            std::unique_ptr<BeachLineNode> newNode = std::make_unique<BeachLineNode>(superParent, sweepLineCoord_,
-                std::make_pair(superParent->right_->right_->GetLeaf(), superParent->right_->right_->GetLeaf()));
+            auto prev = superParent->right_->left_->prev_;
 
-            newNode->prev_ = superParent->right_->left_->prev_;
-            newNode->next_ = superParent->right_->right_->next_;
-            superParent->right_.swap(newNode);
-            superParent->archs_.second = superParent->right_->GetLeaf();
+            superParent->right_->right_->parent_ = superParent;
 
-            if(superParent->right_->prev_) {
-                superParent->right_->prev_->next_ = superParent->right_.get();
+            std::unique_ptr<BeachLineNode> tmp = nullptr;
+            tmp.swap(superParent->right_->right_);
+            tmp.swap(superParent->right_);
+
+            auto mostLeft = superParent->right_.get();
+            while(mostLeft->left_) {
+                mostLeft = mostLeft->left_.get();
             }
-            if(superParent->right_->next_) {
-                superParent->right_->next_->prev_ = superParent->right_.get();
+
+            mostLeft->prev_ = prev;
+            if(prev) {
+                prev->next_ =mostLeft;
             }
 
             auto currentNode = superParent;
@@ -657,19 +666,22 @@ auto VoronoiDiagramBuilder::BeachLine::DeleteArch(VoronoiDiagramBuilder::BeachLi
 
             return std::make_pair(superParent->right_->prev_, superParent->right_.get());
         } else {
-            std::unique_ptr<BeachLineNode> newNode = std::make_unique<BeachLineNode>(superParent, sweepLineCoord_,
-                std::make_pair(superParent->left_->right_->GetLeaf(), superParent->left_->right_->GetLeaf()));
+            auto prev = superParent->left_->left_->prev_;
 
-            newNode->prev_ = superParent->left_->left_->prev_;
-            newNode->next_ = superParent->left_->right_->next_;
-            superParent->left_.swap(newNode);
-            superParent->archs_.first = superParent->left_->GetLeaf();
+            superParent->left_->right_->parent_ = superParent;
 
-            if(superParent->left_->prev_) {
-                superParent->left_->prev_->next_ = superParent->left_.get();
+            std::unique_ptr<BeachLineNode> tmp = nullptr;
+            tmp.swap(superParent->left_->right_);
+            tmp.swap(superParent->left_);
+
+            auto mostLeft = superParent->left_.get();
+            while(mostLeft->left_) {
+                mostLeft = mostLeft->left_.get();
             }
-            if(superParent->left_->next_) {
-                superParent->left_->next_->prev_ = superParent->left_.get();
+
+            mostLeft->prev_ = prev;
+            if(prev) {
+                prev->next_ =mostLeft;
             }
 
             auto currentNode = superParent;
