@@ -1,10 +1,10 @@
-#define DEBUG
-
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <iomanip>
 #include <iostream>
 #include <list>
+#include <map>
 #include <memory>
 #include <vector>
 #include <utility>
@@ -12,15 +12,15 @@
 #include <set>
 
 inline static constexpr long double eps() {
-    return 1e-9;
+    return 1e-12;
 };
 
-inline static constexpr double subeps() {
-    return 1e-5;
+inline static constexpr long double subeps() {
+    return 1e-9;
 }
 
 inline static constexpr long double infty() {
-    return std::numeric_limits<double>::infinity();
+    return std::numeric_limits<long double>::infinity();
 }
 
 template<typename PointType>
@@ -35,9 +35,14 @@ struct Point {
     bool operator==(const Point<PointType>& other) const;
     bool operator!=(const Point<PointType>& other) const;
 
-    double GetLength() const;
+    long double GetLength() const;
 };
 
+template<typename PointType>
+bool operator<(const Point<PointType>& first, const Point<PointType>& second) {
+    return std::pair<PointType, PointType>(first.x, first.y) <
+            std::pair<PointType, PointType>(second.x, second.y);
+}
 
 template<typename PointType>
 bool Point<PointType>::operator==(const Point<PointType>& other) const {
@@ -55,8 +60,8 @@ bool Point<PointType>::operator!=(const Point<PointType>& other) const {
 }
 
 template<typename PointType>
-double Point<PointType>::GetLength() const {
-    return sqrt(static_cast<double>(x) * static_cast<double>(x) + static_cast<double>(y) * static_cast<double>(y));
+long double Point<PointType>::GetLength() const {
+    return sqrt(static_cast<long double>(x) * static_cast<long double>(x) + static_cast<long double>(y) * static_cast<long double>(y));
 }
 
 template<typename PointType>
@@ -87,32 +92,34 @@ PointType GetDeterminant(PointType x11, PointType x12, PointType x21, PointType 
     return x11 * x22 - x12 * x21;
 }
 
-std::vector<Point<double>> GetArchIntersection(const Point<double>& first, const Point<double>& second, double dir) {
-    std::vector<Point<double>> result;
+std::vector<Point<long double>> GetArchIntersection(const Point<long double>& first, const Point<long double>& second, long double dir) {
+    std::vector<Point<long double>> result;
 
     if(std::abs(first.y - second.y) < eps()) {
-        double y = (first.y + second.y) / 2;
-        double delta = sqrt(dir * dir - dir * (first.y + second.y) + first.y * second.y);
-        result.push_back(Point(first.x - delta, y));
-        result.push_back(Point(first.x + delta, y));
-        return result;
+        auto minToX = first.x < second.x - eps() ? first : second;
+        auto maxToX = first.x > second.x - eps() ? first : second;
+        long double deltaX = (maxToX.x - minToX.x) / 2;
+        auto answer = minToX;
+        answer.x += deltaX;
+        answer.y += sqrt(dir * dir - deltaX * deltaX);
+        return {answer};
     }
 
-    double length = pow(first.x - second.x, 2) + pow(first.y - second.y, 2);
+    long double length = pow(first.x - second.x, 2) + pow(first.y - second.y, 2);
 
-    double delta = 2 * sqrt(pow(first.x - second.x, 2) * (dir - first.y) * (dir - second.y) * length);
-    double fixed = -2 * dir * pow(first.x - second.x, 2) + (first.y + second.y) * length;
+    long double delta = 2 * sqrt(pow(first.x - second.x, 2) * (dir - first.y) * (dir - second.y) * length);
+    long double fixed = -2 * dir * pow(first.x - second.x, 2) + (first.y + second.y) * length;
 
-    double denominator = 2 * pow(first.y - second.y, 2);
-    double delta_x = first.x - second.x;
+    long double denominator = 2 * pow(first.y - second.y, 2);
+    long double delta_x = first.x - second.x;
 
-    double y1 = (fixed - delta) / denominator;
-    double y2 = (fixed + delta) / denominator;
+    long double y1 = (fixed - delta) / denominator;
+    long double y2 = (fixed + delta) / denominator;
 
-    double x1 = (first.x * first.x - second.x * second.x +
+    long double x1 = (first.x * first.x - second.x * second.x +
             (2 * y1 - second.y - first.y) * (second.y - first.y)) / delta_x;
 
-    double x2 = (first.x * first.x - second.x * second.x +
+    long double x2 = (first.x * first.x - second.x * second.x +
             (2 * y2 - second.y - first.y) * (second.y - first.y)) / delta_x;
 
     x1 /= 2;
@@ -123,26 +130,26 @@ std::vector<Point<double>> GetArchIntersection(const Point<double>& first, const
         std::swap(y1, y2);
     }
 
-    result.push_back(Point<double>(x1, y1));
-    result.push_back(Point<double>(x2, y2));
+    result.push_back(Point<long double>(x1, y1));
+    result.push_back(Point<long double>(x2, y2));
     return result;
 }
 
-Point<double> GetCenterOfCircle(const Point<double>& first, const Point<double>& second, const Point<double>& third) {
+Point<long double> GetCenterOfCircle(const Point<long double>& first, const Point<long double>& second, const Point<long double>& third) {
     //Getting circle's center, simplifying variables' names
-    double x1 = first.x;
-    double x2 = second.x;
-    double x3 = third.x;
+    long double x1 = first.x;
+    long double x2 = second.x;
+    long double x3 = third.x;
 
-    double y1 = first.y;
-    double y2 = second.y;
-    double y3 = third.y;
+    long double y1 = first.y;
+    long double y2 = second.y;
+    long double y3 = third.y;
 
     /*
      * This formula can be gotten if one expand matrix determinant formula
      * Actually circleCenterX = -B/2A, on the numerator it is -B and 2A for denominator
      */
-    double circleCenterX =
+    long double circleCenterX =
             ( (x1 * x1 + y1 * y1) * (y2 - y3) + (x2 * x2 + y2 * y2) * (y3 - y1) + (x3 * x3 + y3 * y3) * (y1 - y2) ) /
             //---------------------------------------------------------------------------------------------------
                             ( 2 * (x1 * (y2 - y3) - y1 * (x2 - x3) + x2 * y3 - x3 * y2) );
@@ -151,7 +158,7 @@ Point<double> GetCenterOfCircle(const Point<double>& first, const Point<double>&
      * This formula can be gotten if one expand matrix determinant formula
      * Actually circleCenterY = -C/2A, on the numerator it is -C and 2A for denominator
      */
-    double circleCenterY =
+    long double circleCenterY =
             ( (x1 * x1 + y1 * y1) * (x3 - x2) + (x2 * x2 + y2 * y2) * (x1 - x3) + (x3 * x3 + y3 * y3) * (x2 - x1) ) /
             //---------------------------------------------------------------------------------------------------
                             ( 2 * (x1 * (y2 - y3) - y1 * (x2 - x3) + x2 * y3 - x3 * y2) );
@@ -185,12 +192,12 @@ namespace DCEL {
 
     struct Site {
         Face* face;
-        Point<double> point;
-        size_t index;
+        Point<long double> point;
+        uint64_t index;
     };
 
     struct Vertex {
-        Point<double> point;
+        Point<long double> point;
     };
 }
 
@@ -207,14 +214,14 @@ class BeachLineNode;
 
 enum class EventType {SITE, CIRCLE};
 struct Event {
-    double sweep_line_coord;
+    long double sweep_line_coord;
     EventType type;
     bool valid;
 
-    std::optional<Point<double>> point;
+    std::optional<Point<long double>> point;
     BeachLineNode* archToDelete = nullptr;
 
-    explicit Event(double sweep_line, EventType type, bool valid);
+    explicit Event(long double sweep_line, EventType type, bool valid);
     bool operator<(const Event& other) const;
 };
 
@@ -233,9 +240,9 @@ private:
     std::unique_ptr<BeachLineNode> right_ = nullptr;
 
     int32_t height_;
-    double* sweepLineCoord_;
+    long double* sweepLineCoord_;
 
-    std::pair<Point<double>, Point<double>> archs_;
+    std::pair<Point<long double>, Point<long double>> archs_;
 
     std::vector<std::shared_ptr<Event>> circleEvent_ = {};
 
@@ -249,7 +256,7 @@ private:
 
     int32_t GetBalance() const {return left_->height_ - right_->height_; }
 
-    double GetValue() const;
+    long double GetValue() const;
     friend BeachLine;
 
 
@@ -258,15 +265,8 @@ private:
 public:
     BeachLineNode* GetPrev() const { return this->prev_; }
     BeachLineNode* GetNext() const { return this->next_; }
-    Point<double> GetLeaf() const { return archs_.first; }
-    BeachLineNode(BeachLineNode* parent, double* sweepLineCoord, std::pair<Point<double>, Point<double>> archs);
-
-    DCEL::HalfEdge* halfEdge_ = nullptr;
-    DCEL::Face* face_ = nullptr;
-
-    void SetFace(DCEL::Face* face) {
-        this->face_ = face;
-    }
+    Point<long double> GetLeaf() const { return archs_.first; }
+    BeachLineNode(BeachLineNode* parent, long double* sweepLineCoord, std::pair<Point<long double>, Point<long double>> archs);
 
     void SetCircleEvent(std::shared_ptr<Event> circleEvent) {
         circleEvent_.push_back(circleEvent);
@@ -275,20 +275,21 @@ public:
 
 class BeachLine {
 private:
-    double* sweepLineCoord_ = nullptr;
+    long double* sweepLineCoord_ = nullptr;
     std::unique_ptr<BeachLineNode> root = nullptr;
 
-    BeachLineNode* FindIntersectingArch(const Point<double>& newFocus) const;
-    BeachLineNode* InsertToTheLeft(BeachLineNode* node, const Point<double>& newFocus);
-    BeachLineNode* InsertToTheRight(BeachLineNode* node, const Point<double>& newFocus);
+    BeachLineNode* FindIntersectingArch(const Point<long double>& newFocus) const;
+    BeachLineNode* InsertToTheLeft(BeachLineNode* node, const Point<long double>& newFocus);
+    BeachLineNode* InsertToTheRight(BeachLineNode* node, const Point<long double>& newFocus);
 
     void print_line() const;
 
 public:
-    BeachLineNode* InsertNewArch(const Point<double>& newFocus);
+    BeachLineNode* InsertNewArch(const Point<long double>& newFocus);
     std::pair<BeachLineNode*, BeachLineNode*> DeleteArch(BeachLineNode* node);
-    BeachLine(double* sweepLine) : sweepLineCoord_(sweepLine) {}
+    BeachLine(long double* sweepLine) : sweepLineCoord_(sweepLine) {}
 
+    BeachLineNode* GetFirstArch() const;
     void printTree() const;
 
     friend VoronoiDiagramBuilder;
@@ -297,10 +298,11 @@ public:
 class VoronoiDiagramBuilder {
 private:
     VoronoiDiagram diagram_;
+    std::map<Point<long double>, std::vector<Point<long double>>> vertices;
 
     std::priority_queue<std::shared_ptr<Event>, std::vector<std::shared_ptr<Event>>, SharedPtrComparator> queue_;
-    std::vector<Point<double>> points_;
-    double sweepLineCoord_ = infty();
+    std::vector<Point<long double>> points_;
+    long double sweepLineCoord_ = infty();
 
     void HandleSiteEvent(const Event& event);
     void HandleCircleEvent(const Event& event);
@@ -310,18 +312,19 @@ private:
     BeachLine line{&sweepLineCoord_};
 
 public:
-    [[maybe_unused]] explicit VoronoiDiagramBuilder(const std::vector<Point<double>>& points) : points_(points) {}
-    explicit VoronoiDiagramBuilder(std::vector<Point<double>>&& points) : points_(std::move(points)) {}
+    [[maybe_unused]] explicit VoronoiDiagramBuilder(const std::vector<Point<long double>>& points) : points_(points) {}
+    explicit VoronoiDiagramBuilder(std::vector<Point<long double>>&& points) : points_(std::move(points)) {}
     void Build();
+    long double GetAverage() const;
 };
 
 BeachLineNode::BeachLineNode(BeachLineNode *parent,
-                            double *sweepLineCoord,
-                            std::pair<Point<double>, Point<double>> archs) :
+                            long double *sweepLineCoord,
+                            std::pair<Point<long double>, Point<long double>> archs) :
                             parent_(parent), sweepLineCoord_(sweepLineCoord),
                             archs_(archs) {}
 
-double BeachLineNode::GetValue() const {
+long double BeachLineNode::GetValue() const {
     if(this->IsLeaf()) {
         return this->archs_.first.x;
     } else {
@@ -349,10 +352,10 @@ void BeachLineNode::line_print() const {
 
 
 BeachLineNode*
-BeachLine::FindIntersectingArch(const Point<double> &newFocus) const {
+BeachLine::FindIntersectingArch(const Point<long double> &newFocus) const {
     BeachLineNode* currentNode = root.get();
     while(!currentNode->IsLeaf()) {
-        double value = currentNode->GetValue();
+        long double value = currentNode->GetValue();
         if(value <= newFocus.x - eps()) {
             currentNode = currentNode->right_.get();
         } else {
@@ -362,7 +365,7 @@ BeachLine::FindIntersectingArch(const Point<double> &newFocus) const {
     return currentNode;
 }
 
-BeachLineNode* BeachLine::InsertNewArch(const Point<double> &newFocus) {
+BeachLineNode* BeachLine::InsertNewArch(const Point<long double> &newFocus) {
     if(!root) {
         root = std::make_unique<BeachLineNode> (
                 nullptr,
@@ -375,13 +378,11 @@ BeachLineNode* BeachLine::InsertNewArch(const Point<double> &newFocus) {
 
     BeachLineNode* ArchToBreak = FindIntersectingArch(newFocus);
 
-    if(!ArchToBreak->circleEvent_.empty()) {
-        for(auto event : ArchToBreak->circleEvent_) {
-            event->valid = false;
-        }
+    for(auto event : ArchToBreak->circleEvent_) {
+        event->valid = false;
     }
 
-    double value = ArchToBreak->GetValue();
+    long double value = ArchToBreak->GetValue();
     if(value <= newFocus.x - eps()) {
         return InsertToTheRight(ArchToBreak, newFocus);
     }
@@ -389,7 +390,7 @@ BeachLineNode* BeachLine::InsertNewArch(const Point<double> &newFocus) {
  }
 
 BeachLineNode*
-BeachLine::InsertToTheLeft(BeachLineNode *node, const Point<double> &newFocus) {
+BeachLine::InsertToTheLeft(BeachLineNode *node, const Point<long double> &newFocus) {
     node->right_ = std::make_unique<BeachLineNode> (
             node,
             sweepLineCoord_,
@@ -440,7 +441,7 @@ BeachLine::InsertToTheLeft(BeachLineNode *node, const Point<double> &newFocus) {
 }
 
 BeachLineNode*
-BeachLine::InsertToTheRight(BeachLineNode *node, const Point<double> &newFocus) {
+BeachLine::InsertToTheRight(BeachLineNode *node, const Point<long double> &newFocus) {
     node->left_ = std::make_unique<BeachLineNode> (
             node,
             sweepLineCoord_,
@@ -514,13 +515,14 @@ std::shared_ptr<Event> VoronoiDiagramBuilder::CheckCircleEvent(
         return nullptr;
     }
 
-    double circleRadius = (circleCenter - first_point).GetLength();
+    long double circleRadius = (circleCenter - first_point).GetLength();
     std::shared_ptr<Event> circleEvent = std::make_shared<Event>(circleCenter.y - circleRadius, EventType::CIRCLE, true);
     circleEvent->point = circleCenter;
     circleEvent->archToDelete = second;
 
-    first->SetCircleEvent(circleEvent);
-    third->SetCircleEvent(circleEvent);
+    //first->SetCircleEvent(circleEvent);
+    second->SetCircleEvent(circleEvent);
+    //third->SetCircleEvent(circleEvent);
     return circleEvent;
 }
 
@@ -528,6 +530,10 @@ std::shared_ptr<Event> VoronoiDiagramBuilder::CheckCircleEvent(
 auto BeachLine::DeleteArch(BeachLineNode *node)
     -> std::pair<BeachLineNode*, BeachLineNode*>
 {
+    for(auto event : node->circleEvent_) {
+        event->valid = false;
+    }
+
     BeachLineNode* parent = node->parent_;
     assert(parent->parent_);
     auto superParent = parent->parent_;
@@ -564,7 +570,7 @@ auto BeachLine::DeleteArch(BeachLineNode *node)
                 currentNode->archs_ = std::make_pair(deletedPrev, deletedNext);
             }
 
-            return std::make_pair(superParent->right_.get(), superParent->right_->next_);
+            return std::make_pair(mostRight, mostRight->next_);
         } else {
             auto next = superParent->left_->right_->next_;
 
@@ -585,14 +591,14 @@ auto BeachLine::DeleteArch(BeachLineNode *node)
             }
 
             auto currentNode = superParent;
-            while(currentNode && !(currentNode->archs_.first == deletedPrev && currentNode->archs_.second == focusToDelete)) {
+            while(currentNode && !(currentNode->archs_.first == focusToDelete && currentNode->archs_.second == deletedNext)) {
                 currentNode = currentNode->parent_;
             }
             if(currentNode) {
                 currentNode->archs_ = std::make_pair(deletedPrev, deletedNext);
             }
 
-            return std::make_pair(superParent->left_.get(), superParent->left_->next_);
+            return std::make_pair(mostRight, mostRight->next_);
         }
 
     } else {
@@ -616,14 +622,14 @@ auto BeachLine::DeleteArch(BeachLineNode *node)
             }
 
             auto currentNode = superParent;
-            while(currentNode && !(currentNode->archs_.first == focusToDelete && currentNode->archs_.second == deletedNext)) {
+            while(currentNode && !(currentNode->archs_.first == deletedPrev && currentNode->archs_.second == focusToDelete)) {
                 currentNode = currentNode->parent_;
             }
             if(currentNode) {
                 currentNode->archs_ = std::make_pair(deletedPrev, deletedNext);
             }
 
-            return std::make_pair(superParent->right_->prev_, superParent->right_.get());
+            return std::make_pair(mostLeft->prev_, mostLeft);
         } else {
             auto prev = superParent->left_->left_->prev_;
 
@@ -651,7 +657,7 @@ auto BeachLine::DeleteArch(BeachLineNode *node)
                 currentNode->archs_ = std::make_pair(deletedPrev, deletedNext);
             }
 
-            return std::make_pair(superParent->left_->prev_, superParent->left_.get());
+            return std::make_pair(mostLeft->prev_, mostLeft);
         }
     }
 }
@@ -668,16 +674,16 @@ void BeachLine::print_line() const {
 }
 
 void BeachLine::printTree() const {
-    std::queue<std::pair<BeachLineNode*, size_t>> queue;
+    std::queue<std::pair<BeachLineNode*, uint64_t>> queue;
     if(!this->root) {
         return;
     }
 
-    size_t currentLevel = 0;
+    uint64_t currentLevel = 0;
     queue.emplace(this->root.get(), 0);
     while(!queue.empty()) {
         auto currentNode = queue.front().first;
-        size_t poppedLevel = queue.front().second;
+        uint64_t poppedLevel = queue.front().second;
         queue.pop();
 
         if(currentLevel != poppedLevel) {
@@ -696,12 +702,21 @@ void BeachLine::printTree() const {
     std::cout << std::endl;
 }
 
+BeachLineNode *BeachLine::GetFirstArch() const {
+    auto currentNode = root.get();
+    while(currentNode->left_) {
+        currentNode = currentNode->left_.get();
+    }
+    return currentNode;
+}
+
 void VoronoiDiagramBuilder::Build() {
     for(const auto& point : points_) {
         auto new_event = std::make_shared<Event>(point.y, EventType::SITE, true);
         new_event->point = point;
         queue_.push(std::move(new_event));
     }
+
     while(!queue_.empty()) {
 
         auto event = *queue_.top();
@@ -721,8 +736,8 @@ void VoronoiDiagramBuilder::Build() {
 
 #ifdef DEBUG
         line.print_line();
-        //std::cout << "====================" << std::endl;
-        //line.printTree();
+        std::cout << "====================" << std::endl;
+        line.printTree();
 #endif
     }
 }
@@ -730,15 +745,7 @@ void VoronoiDiagramBuilder::Build() {
 void VoronoiDiagramBuilder::HandleSiteEvent(const Event &event) {
     assert(event.point.has_value());
 
-    diagram_.faces.push_back(std::make_unique<DCEL::Face>());
-    diagram_.sites.push_back(std::make_unique<DCEL::Site>());
-    diagram_.sites.back()->point = *event.point;
-    diagram_.sites.back()->face = diagram_.faces.back().get();
-    diagram_.faces.back()->site = diagram_.sites.back().get();
-
     BeachLineNode* newLeaf = this->line.InsertNewArch(*event.point);
-
-    newLeaf->SetFace(diagram_.faces.back().get());
 
     BeachLineNode* nextNewLeaf = newLeaf->GetNext();
     BeachLineNode* nextNextNewLeaf = nullptr;
@@ -782,64 +789,11 @@ void VoronoiDiagramBuilder::HandleCircleEvent(const Event &event) {
     auto left = nodeToDelete->GetPrev();
     auto right = nodeToDelete->GetNext();
 
+    vertices[left->GetLeaf()].push_back(*circleCenter);
+    vertices[right->GetLeaf()].push_back(*circleCenter);
+    vertices[nodeToDelete->GetLeaf()].push_back(*circleCenter);
 
-    auto vertex = std::make_unique<DCEL::Vertex>();
-    vertex->point = *event.point;
-
-    //===========LEFT HALF-EDGE============//
-
-    auto firstLeftHalfEdge = std::make_unique<DCEL::HalfEdge>();
-    auto secondLeftHalfEdge = std::make_unique<DCEL::HalfEdge>();
-
-    firstLeftHalfEdge->face = left->face_;
-    secondLeftHalfEdge->face = left->face_;
-
-    firstLeftHalfEdge->finish = vertex.get();
-    secondLeftHalfEdge->start = vertex.get();
-
-    firstLeftHalfEdge->next = secondLeftHalfEdge.get();
-    secondLeftHalfEdge->prev = firstLeftHalfEdge.get();
-
-    //===========MIDDLE HALF-EDGE============//
-
-    auto firstMiddleHalfEdge = std::make_unique<DCEL::HalfEdge>();
-    auto secondMiddleHalfEdge = std::make_unique<DCEL::HalfEdge>();
-
-    firstMiddleHalfEdge->face = nodeToDelete->face_;
-    firstMiddleHalfEdge->finish = vertex.get();
-
-    secondMiddleHalfEdge->face = nodeToDelete->face_;
-    secondMiddleHalfEdge->start = vertex.get();
-
-    firstMiddleHalfEdge->next = secondMiddleHalfEdge.get();
-    secondMiddleHalfEdge->prev = firstMiddleHalfEdge.get();
-
-    //===========RIGHT HALF-EDGE============//
-
-    auto firstRightHalfEdge = std::make_unique<DCEL::HalfEdge>();
-    auto secondRightHalfEdge = std::make_unique<DCEL::HalfEdge>();
-
-    firstRightHalfEdge->face = right->face_;
-    firstRightHalfEdge->finish = vertex.get();
-
-    secondRightHalfEdge->face = right->face_;
-    secondRightHalfEdge->start = vertex.get();
-
-    firstRightHalfEdge->next = secondRightHalfEdge.get();
-    secondRightHalfEdge->prev = firstRightHalfEdge.get();
-
-    //===========LINKING==========//
-
-    firstLeftHalfEdge->twin = secondMiddleHalfEdge.get();
-    secondMiddleHalfEdge->twin = firstLeftHalfEdge.get();
-
-    secondLeftHalfEdge->twin = firstRightHalfEdge.get();
-    firstRightHalfEdge->twin = secondLeftHalfEdge.get();
-
-    firstMiddleHalfEdge->twin = secondRightHalfEdge.get();
-    secondRightHalfEdge->twin = firstMiddleHalfEdge.get();
-
-    //==========CONNECTING TO PREVIOUS EDGES===========//
+    //std::cout << "NEW VERTEX: " << (*circleCenter).x << ' ' << (*circleCenter).y << std::endl;
 
     auto [prev, next] = line.DeleteArch(nodeToDelete);
 
@@ -866,25 +820,58 @@ void VoronoiDiagramBuilder::HandleCircleEvent(const Event &event) {
     }
 }
 
+long double VoronoiDiagramBuilder::GetAverage() const {
+    std::set<Point<long double>> badPoints;
+
+    auto currentNode = line.GetFirstArch();
+    while(currentNode->GetNext()) {
+        badPoints.insert(currentNode->GetLeaf());
+        currentNode = currentNode->GetNext();
+    }
+
+    long double answer = 0;
+    uint64_t counter = 0;
+
+    for(const auto& point : points_) {
+        if(badPoints.find(point) == badPoints.end()) {
+            answer += vertices.at(point).size();
+            ++counter;
+        }
+    }
+
+    if (counter == 0) {
+        return 0;
+    }
+    return answer / counter;
+}
+
 bool Event::operator<(const Event &other) const {
     return sweep_line_coord < other.sweep_line_coord;
 }
 
-Event::Event(double sweep_line, EventType type, bool valid) :
+Event::Event(long double sweep_line, EventType type, bool valid) :
     sweep_line_coord(sweep_line), type(type), valid(valid) {}
 
 int main() {
-    double x = 0.0;
-    double y = 0.0;
+    long double x = 0.0;
+    long double y = 0.0;
 
-    std::vector<Point<double>> points;
+    std::vector<Point<long double>> points;
 
     while(std::cin >> x) {
         std::cin >> y;
         points.emplace_back(x, y);
     }
 
+    std::sort(points.begin(), points.end(), [](const Point<long double>& first, const Point<long double>& second) {
+        return first.y < second.y;
+    });
+    if(std::abs(points.back().y - points[points.size() - 2].y) < eps()) {
+        points.back().y += 0.00001;
+    }
+
     VoronoiDiagramBuilder builder(std::move(points));
     builder.Build();
+    std::cout << std::fixed << std::setprecision(7) <<  builder.GetAverage() << std::endl;
     return 0;
 }
