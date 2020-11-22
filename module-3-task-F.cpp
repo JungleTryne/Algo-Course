@@ -44,14 +44,14 @@ struct Point {
 template<typename PointType>
 bool operator<(const Point<PointType>& first, const Point<PointType>& second) {
     return std::pair<PointType, PointType>(first.x, first.y) <
-            std::pair<PointType, PointType>(second.x, second.y);
+           std::pair<PointType, PointType>(second.x, second.y);
 }
 
 template<typename PointType>
 bool Point<PointType>::operator==(const Point<PointType>& other) const {
     if constexpr (std::is_same<PointType, long double>::value) {
         return std::abs(this->x - other.x) <= VoronoiGlobals::eps() &&
-            std::abs(this->y - other.y) <= VoronoiGlobals::eps();
+               std::abs(this->y - other.y) <= VoronoiGlobals::eps();
     } else {
         return (this->x == other.x) && (this->y == other.y);
     }
@@ -66,7 +66,7 @@ bool Point<PointType>::operator!=(const Point<PointType>& other) const {
 template<typename PointType>
 long double Point<PointType>::GetLength() const {
     return sqrt(static_cast<long double>(x) * static_cast<long double>(x) +
-        static_cast<long double>(y) * static_cast<long double>(y));
+                static_cast<long double>(y) * static_cast<long double>(y));
 }
 
 template<typename PointType>
@@ -96,8 +96,8 @@ std::vector<Point<long double>> GetArchIntersection(const Point<long double>& fi
                                                     const Point<long double>& second, long double dir) {
     std::vector<Point<long double>> result;
 
-     /* Case if foci are on the same line y(x) = C
-     */
+    /* Case if foci are on the same line y(x) = C
+    */
     if(std::abs(first.y - second.y) < VoronoiGlobals::eps()) {
         auto minToX = first.x < second.x - VoronoiGlobals::eps() ? first : second;
         auto maxToX = first.x > second.x - VoronoiGlobals::eps() ? first : second;
@@ -108,19 +108,19 @@ std::vector<Point<long double>> GetArchIntersection(const Point<long double>& fi
         return {answer};
     }
 
-     /* Else just using some simple math
-     */
+    /* Else just using some simple math
+    */
 
-     /* if we have focus (a,b) and directix c, then parabola formula is following:
-      * (x-a)^2 + b^2 - c^2 = 2(b - c)y
-      * Then we just find intersection of two parabolas
-      */
+    /* if we have focus (a,b) and directix c, then parabola formula is following:
+     * (x-a)^2 + b^2 - c^2 = 2(b - c)y
+     * Then we just find intersection of two parabolas
+     */
 
     long double denominator = first.y - second.y;
     long double fixed = second.x * first.y - first.x * second.y - second.x * dir + first.x * dir;
     long double delta = sqrt((first.x * first.x - 2 * second.x * first.x + second.x * second.x + first.y * first.y +
-            second.y * second.y - 2 * first.y * second.y) * (-first.y * dir - second.y * dir + first.y * second.y +
-                    dir * dir));
+                              second.y * second.y - 2 * first.y * second.y) * (-first.y * dir - second.y * dir + first.y * second.y +
+                                                                               dir * dir));
 
     long double x1 = (fixed - delta) / denominator;
     long double x2 = (fixed + delta) / denominator;
@@ -277,9 +277,10 @@ private:
     void BalanceTreeLeftRight(BeachLineNode* currentNode);
     void BalanceTreeLeftLeft(BeachLineNode* currentNode);
 
-    std::unique_ptr<BeachLineNode>& ToUnique(BeachLineNode* node);
+    void FindAndFixRemain(const Point<long double>& first, const Point<long double>&
+            second, const Point<long double>& deletedPrev, const Point<long double>& deletedNext);
 
-    void print_line() const;
+    std::unique_ptr<BeachLineNode>& ToUnique(BeachLineNode* node);
 
 public:
     BeachLineNode* InsertNewArch(const Point<long double>& newFocus);
@@ -287,8 +288,6 @@ public:
     BeachLine(long double* sweepLine) : sweepLineCoord_(sweepLine) {}
 
     BeachLineNode* GetFirstArch() const;
-    void printTree() const;
-
     friend VoronoiDiagramBuilder;
 };
 
@@ -315,10 +314,10 @@ public:
 };
 
 BeachLineNode::BeachLineNode(BeachLineNode *parent,
-                            long double *sweepLineCoord,
-                            std::pair<Point<long double>, Point<long double>> archs) :
-                            parent_(parent), sweepLineCoord_(sweepLineCoord),
-                            archs_(archs) {}
+                             long double *sweepLineCoord,
+                             std::pair<Point<long double>, Point<long double>> archs) :
+        parent_(parent), sweepLineCoord_(sweepLineCoord),
+        archs_(archs) {}
 
 long double BeachLineNode::GetValue() const {
     if(this->IsLeaf()) {
@@ -383,7 +382,7 @@ BeachLineNode* BeachLine::InsertNewArch(const Point<long double> &newFocus) {
         return InsertToTheRight(ArchToBreak, newFocus);
     }
     return InsertToTheLeft(ArchToBreak, newFocus);
- }
+}
 
 BeachLineNode*
 BeachLine::InsertToTheLeft(BeachLineNode *node, const Point<long double> &newFocus) {
@@ -434,6 +433,7 @@ BeachLine::InsertToTheLeft(BeachLineNode *node, const Point<long double> &newFoc
     node->prev_ = nullptr;
 
     leftNode->height_ = 1;
+    auto nodeToReturn = leftNode->right_.get();
     assert(!leftNode->IsLeaf());
     auto currentNode = node;
     while(!currentNode->IsRoot()) {
@@ -443,7 +443,7 @@ BeachLine::InsertToTheLeft(BeachLineNode *node, const Point<long double> &newFoc
     }
     currentNode->height_ = std::max(currentNode->left_->height_, currentNode->right_->height_) + 1;
 
-    return leftNode->right_.get();
+    return nodeToReturn;
 }
 
 BeachLineNode*
@@ -511,25 +511,22 @@ BeachLine::InsertToTheRight(BeachLineNode *node, const Point<long double> &newFo
 }
 
 void BeachLine::BalanceTreeRightRight(BeachLineNode* currentNode) {
-    //std::cout << "BALANCED RIGHT RIGHT" << std::endl;
     RotateRightChild(this->ToUnique(currentNode));
 }
 
 void BeachLine::BalanceTreeRightLeft(BeachLineNode* currentNode) {
-    //std::cout << "BALANCED RIGHT LEFT" << std::endl;
     RotateLeftChild(currentNode->right_);
-    RotateRightChild(this->ToUnique(currentNode));
+    auto& uniqueCurrent = ToUnique(currentNode);
+    RotateRightChild(uniqueCurrent);
 }
 
 void BeachLine::BalanceTreeLeftRight(BeachLineNode* currentNode) {
-    //std::cout << "BALANCED LEFT RIGHT" << std::endl;
     RotateRightChild(currentNode->left_);
     auto& uniqueCurrent = ToUnique(currentNode);
     RotateLeftChild(uniqueCurrent);
 }
 
 void BeachLine::BalanceTreeLeftLeft(BeachLineNode* currentNode) {
-    //std::cout << "BALANCED LEFT LEFT" << std::endl;
     RotateLeftChild(this->ToUnique(currentNode));
 }
 
@@ -549,7 +546,7 @@ std::shared_ptr<Event> VoronoiDiagramBuilder::CheckCircleEvent(
 
     //checking the right turn
     if((second_point.x - first_point.x) * (third_point.y - first_point.y) -
-            (third_point.x - first_point.x) * (second_point.y - first_point.y) > 0) {
+       (third_point.x - first_point.x) * (second_point.y - first_point.y) > 0) {
         return nullptr;
     }
 
@@ -569,7 +566,7 @@ std::shared_ptr<Event> VoronoiDiagramBuilder::CheckCircleEvent(
 }
 
 auto BeachLine::DeleteArch(BeachLineNode *node)
-    -> std::pair<BeachLineNode*, BeachLineNode*>
+-> std::pair<BeachLineNode*, BeachLineNode*>
 {
     for(auto event : node->circleEvent_) {
         event->valid = false;
@@ -597,46 +594,6 @@ auto BeachLine::DeleteArch(BeachLineNode *node)
             return DeleteLeftLeft(focusToDelete, superParent, deletedPrev, deletedNext);
         }
     }
-}
-
-void BeachLine::print_line() const {
-    if(root) {
-        auto currentNode = root.get();
-        while(currentNode->left_) {
-            currentNode = currentNode->left_.get();
-        }
-        currentNode->line_print();
-        std::cout << '\n';
-    }
-}
-
-void BeachLine::printTree() const {
-    std::queue<std::pair<BeachLineNode*, uint64_t>> queue;
-    if(!this->root) {
-        return;
-    }
-
-    uint64_t currentLevel = 0;
-    queue.emplace(this->root.get(), 0);
-    while(!queue.empty()) {
-        auto currentNode = queue.front().first;
-        uint64_t poppedLevel = queue.front().second;
-        queue.pop();
-
-        if(currentLevel != poppedLevel) {
-            currentLevel = poppedLevel;
-            std::cout << std::endl;
-        }
-
-        std::cout << '[' << "(" << currentNode->archs_.first.x << ", " <<  currentNode->archs_.first.y << "), "
-            << "(" << currentNode->archs_.second.x << ", " <<  currentNode->archs_.second.y<< ")]=" << currentNode->height_ << " ";
-        if(currentNode->left_.get()) {
-            queue.emplace(currentNode->left_.get(), poppedLevel + 1);
-            queue.emplace(currentNode->right_.get(), poppedLevel + 1);
-        }
-    }
-    std::cout << std::endl;
-    std::cout << std::endl;
 }
 
 BeachLineNode *BeachLine::GetFirstArch() const {
@@ -669,36 +626,9 @@ auto BeachLine::DeleteRightRight(const Point<long double>& focusToDelete,
         next->prev_ = mostRight;
     }
 
-    auto currentNode = root.get();
-    long double wantedValueFirst = GetArchIntersection(focusToDelete, deletedNext, *sweepLineCoord_)[0].x;
-    long double wantedValueSecond = GetArchIntersection(focusToDelete, deletedNext, *sweepLineCoord_)[1].x;
+    FindAndFixRemain(focusToDelete, deletedNext, deletedPrev, deletedNext);
 
-    while(!currentNode->IsLeaf() && !(currentNode->archs_.first == focusToDelete && currentNode->archs_.second == deletedNext)) {
-        long double value = currentNode->GetValue();
-        if(value < wantedValueFirst) {
-            currentNode = currentNode->right_.get();
-        } else {
-            currentNode = currentNode->left_.get();
-        }
-    }
-
-    if(currentNode->IsLeaf()) {
-        currentNode = root.get();
-        while(!currentNode->IsLeaf() && !(currentNode->archs_.first == focusToDelete && currentNode->archs_.second == deletedNext)) {
-            long double value = currentNode->GetValue();
-            if(value < wantedValueSecond) {
-                currentNode = currentNode->right_.get();
-            } else {
-                currentNode = currentNode->left_.get();
-            }
-        }
-    }
-
-    if(currentNode) {
-        currentNode->archs_ = std::make_pair(deletedPrev, deletedNext);
-    }
-
-    currentNode = superParent;
+    auto currentNode = superParent;
     while(!currentNode->IsRoot()) {
         Balance(currentNode);
         currentNode->height_ = std::max(currentNode->left_->height_, currentNode->right_->height_) + 1;
@@ -730,40 +660,9 @@ auto BeachLine::DeleteRightLeft(const Point<long double> &focusToDelete, BeachLi
         prev->next_ =mostLeft;
     }
 
-    auto currentNode = root.get();
-    long double wantedValueFirst = GetArchIntersection(deletedPrev, focusToDelete, *sweepLineCoord_)[0].x;
-    long double wantedValueSecond = GetArchIntersection(deletedPrev, focusToDelete, *sweepLineCoord_)[1].x;
+    FindAndFixRemain(deletedPrev, focusToDelete, deletedPrev, deletedNext);
 
-    while(!currentNode->IsLeaf() && !(currentNode->archs_.first == deletedPrev &&
-        currentNode->archs_.second == focusToDelete)) {
-
-        long double value = currentNode->GetValue();
-        if(value < wantedValueFirst) {
-            currentNode = currentNode->right_.get();
-        } else {
-            currentNode = currentNode->left_.get();
-        }
-    }
-
-    if(currentNode->IsLeaf()) {
-        currentNode = root.get();
-        while(!currentNode->IsLeaf() && !(currentNode->archs_.first == deletedPrev &&
-            currentNode->archs_.second == focusToDelete)) {
-
-            long double value = currentNode->GetValue();
-            if(value < wantedValueSecond) {
-                currentNode = currentNode->right_.get();
-            } else {
-                currentNode = currentNode->left_.get();
-            }
-        }
-    }
-
-    if(currentNode) {
-        currentNode->archs_ = std::make_pair(deletedPrev, deletedNext);
-    }
-
-    currentNode = superParent;
+    auto currentNode = superParent;
     while(!currentNode->IsRoot()) {
         Balance(currentNode);
         currentNode->height_ = std::max(currentNode->left_->height_, currentNode->right_->height_) + 1;
@@ -795,36 +694,9 @@ auto BeachLine::DeleteLeftRight(const Point<long double> &focusToDelete, BeachLi
         next->prev_ = mostRight;
     }
 
-    auto currentNode = root.get();
-    long double wantedValueFirst = GetArchIntersection(focusToDelete, deletedNext, *sweepLineCoord_)[0].x;
-    long double wantedValueSecond = GetArchIntersection(focusToDelete, deletedNext, *sweepLineCoord_)[1].x;
+    FindAndFixRemain(focusToDelete, deletedNext, deletedPrev, deletedNext);
 
-    while(!currentNode->IsLeaf() && !(currentNode->archs_.first == focusToDelete && currentNode->archs_.second == deletedNext)) {
-        long double value = currentNode->GetValue();
-        if(value < wantedValueFirst) {
-            currentNode = currentNode->right_.get();
-        } else {
-            currentNode = currentNode->left_.get();
-        }
-    }
-
-    if(currentNode->IsLeaf()) {
-        currentNode = root.get();
-        while(!currentNode->IsLeaf() && !(currentNode->archs_.first == focusToDelete && currentNode->archs_.second == deletedNext)) {
-            long double value = currentNode->GetValue();
-            if(value < wantedValueSecond) {
-                currentNode = currentNode->right_.get();
-            } else {
-                currentNode = currentNode->left_.get();
-            }
-        }
-    }
-
-    if(currentNode) {
-        currentNode->archs_ = std::make_pair(deletedPrev, deletedNext);
-    }
-
-    currentNode = superParent;
+    auto currentNode = superParent;
     while(!currentNode->IsRoot()) {
         Balance(currentNode);
         currentNode->height_ = std::max(currentNode->left_->height_, currentNode->right_->height_) + 1;
@@ -856,36 +728,9 @@ auto BeachLine::DeleteLeftLeft(const Point<long double> &focusToDelete, BeachLin
         prev->next_ = mostLeft;
     }
 
-    auto currentNode = root.get();
-    long double wantedValueFirst = GetArchIntersection(deletedPrev, focusToDelete, *sweepLineCoord_)[0].x;
-    long double wantedValueSecond = GetArchIntersection(deletedPrev, focusToDelete, *sweepLineCoord_)[1].x;
+    FindAndFixRemain(deletedPrev, focusToDelete, deletedPrev, deletedNext);
 
-    while(!currentNode->IsLeaf() && !(currentNode->archs_.first == deletedPrev && currentNode->archs_.second == focusToDelete)) {
-        long double value = currentNode->GetValue();
-        if(value < wantedValueFirst) {
-            currentNode = currentNode->right_.get();
-        } else {
-            currentNode = currentNode->left_.get();
-        }
-    }
-
-    if(currentNode->IsLeaf()) {
-        currentNode = root.get();
-        while(!currentNode->IsLeaf() && !(currentNode->archs_.first == deletedPrev && currentNode->archs_.second == focusToDelete)) {
-            long double value = currentNode->GetValue();
-            if(value < wantedValueSecond) {
-                currentNode = currentNode->right_.get();
-            } else {
-                currentNode = currentNode->left_.get();
-            }
-        }
-    }
-
-    if(currentNode) {
-        currentNode->archs_ = std::make_pair(deletedPrev, deletedNext);
-    }
-
-    currentNode = superParent;
+    auto currentNode = superParent;
     while(!currentNode->IsRoot()) {
         Balance(currentNode);
         currentNode->height_ = std::max(currentNode->left_->height_, currentNode->right_->height_) + 1;
@@ -960,6 +805,38 @@ void BeachLine::Balance(BeachLineNode* currentNode) {
     }
 }
 
+void BeachLine::FindAndFixRemain(const Point<long double> &first, const Point<long double> &second,
+                                 const Point<long double> &deletedPrev, const Point<long double> &deletedNext) {
+    auto currentNode = root.get();
+    long double wantedValueFirst = GetArchIntersection(first, second, *sweepLineCoord_)[0].x;
+    long double wantedValueSecond = GetArchIntersection(first, second, *sweepLineCoord_)[1].x;
+
+    while(!currentNode->IsLeaf() && !(currentNode->archs_.first == first && currentNode->archs_.second == second)) {
+        long double value = currentNode->GetValue();
+        if(value < wantedValueFirst) {
+            currentNode = currentNode->right_.get();
+        } else {
+            currentNode = currentNode->left_.get();
+        }
+    }
+
+    if(currentNode->IsLeaf()) {
+        currentNode = root.get();
+        while(!currentNode->IsLeaf() && !(currentNode->archs_.first == first && currentNode->archs_.second == second)) {
+            long double value = currentNode->GetValue();
+            if(value < wantedValueSecond) {
+                currentNode = currentNode->right_.get();
+            } else {
+                currentNode = currentNode->left_.get();
+            }
+        }
+    }
+
+    if(currentNode) {
+        currentNode->archs_ = std::make_pair(deletedPrev, deletedNext);
+    }
+}
+
 void VoronoiDiagramBuilder::Build() {
     for(const auto& point : points_) {
         auto new_event = std::make_shared<Event>(point.y, EventType::SITE, true);
@@ -984,11 +861,6 @@ void VoronoiDiagramBuilder::Build() {
             HandleCircleEvent(event);
         }
 
-#ifdef DEBUG
-        line.print_line();
-        std::cout << "====================" << std::endl;
-        line.printTree();
-#endif
     }
 }
 
@@ -1098,7 +970,7 @@ bool Event::operator<(const Event &other) const {
 }
 
 Event::Event(long double sweep_line, EventType type, bool valid) :
-    sweep_line_coord(sweep_line), type(type), valid(valid) {}
+        sweep_line_coord(sweep_line), type(type), valid(valid) {}
 
 int main() {
     long double x = 0.0;
