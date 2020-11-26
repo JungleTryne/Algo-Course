@@ -8,6 +8,8 @@
 
 .idea
 
+test.txt
+
 # CMake
 cmake-build-*/
 
