@@ -3,8 +3,10 @@
 #include <iostream>
 #include <iomanip>
 
-constexpr double eps() {
-    return 1e-9;
+namespace TaskGlobals {
+    constexpr double eps() {
+        return 1e-9;
+    }
 }
 
 template<typename PointType>
@@ -30,9 +32,9 @@ bool Point<PointType>::operator==(const Point &other) const {
 
 template<>
 bool Point<double>::operator==(const Point &other) const {
-    return  std::abs(this->x - other.x) <= eps() &&
-            std::abs(this->y - other.y) <= eps() &&
-            std::abs(this->z - other.z) <= eps();
+    return  std::abs(this->x - other.x) <= TaskGlobals::eps() &&
+            std::abs(this->y - other.y) <= TaskGlobals::eps() &&
+            std::abs(this->z - other.z) <= TaskGlobals::eps();
 }
 
 template<typename PointType>
@@ -151,7 +153,7 @@ public:
 
 double DistanceFinder::GetDistanceBetweenPointAndSegment(const Point<int64_t> &point, const Segment<int64_t>& segment) {
     auto deltaPoint = point - segment.first;
-    if(std::abs((segment.second - segment.first).GetLength()) < eps()) {
+    if(std::abs((segment.second - segment.first).GetLength()) < TaskGlobals::eps()) {
         return (point - segment.second).GetLength();
     }
     auto normalDeltaSegment = GetNormal(segment.second - segment.first);
