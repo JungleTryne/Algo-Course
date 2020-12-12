@@ -201,15 +201,9 @@ bool Solution::isInitiallyLoosing(const Vertex &vertex) {
     /*
      * Fugitive is definitely loosing IF:
      * 1) If he is under terminator's blast
-     * 2) It is terminators turn and terminator has a way
-     * to make a turn and blast the fugitive
      */
 
-    if(isUnderBlast(vertex)) {
-        return true;
-    }
-
-    return false;
+    return isUnderBlast(vertex);
 }
 
 bool Solution::isUnderBlast(const Vertex &vertex) {
