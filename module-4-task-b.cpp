@@ -5,8 +5,6 @@
 #include <iostream>
 #include <vector>
 
-#include <unordered_set>
-
 /* We have field 8x8
  * So we have 8^2 * 8^2 * 2 = 8192 vertices in
  * out game graph
@@ -18,12 +16,12 @@ enum FieldSize {
 
 enum FieldObjects {
     WALL = 1,
-    FUGITIVE = 2,
+    FUGITIVE [[maybe_unused]] = 2,
     TERMINATOR = 3
 };
 
 using comp_t  = int8_t; //component type
-using vert_t  = size_t;  //encoded vertex type
+using vert_t  = size_t; //encoded vertex type
 
 using coord_t = std::pair<comp_t , comp_t>;
 using field_t = std::array<std::array<comp_t, FieldSize::X>, FieldSize::Y>;
@@ -102,8 +100,8 @@ private:
     field_t field_{};
 
     /* @param vertices_winning: is the vertex winning position
-    *  @param vertices_known: do we know about winning property of the vertex
-    *  @param top_sort_used: is the certain vertex used
+    *  @param vertices_loosing: is the vertex loosing position
+    *  @param banned: is the vertex banned (because of a wall)
     */
     graph_vertices_t vertices_winning_;
     graph_vertices_t vertices_loosing_;
@@ -183,14 +181,6 @@ void Solution::handleField() {
 }
 
 bool Solution::FugitiveWins() {
-
-    Vertex v;
-    v.fugitiveCoord = {0, 2};
-    v.terminatorCoord = {2, 0};
-    v.fugitiveTurn = 0;
-
-    size_t code = VertexToComplexCoord(v);
-
     banImpossible();
     getDegrees();
     handleField();
@@ -204,7 +194,7 @@ bool Solution::FugitiveWins() {
             if(vertices_loosing_[i]) {
                 return false;
             }
-            return false;
+            return false; //not reachable -> not winning
         }
     }
 
@@ -254,6 +244,11 @@ bool Solution::isInitiallyWinning(const Vertex &vertex) {
         return onEdge && !underBlast;
     }
 
+    /*
+     * Terminator is winning IF:
+     * 1) His coordinate is the same is fugitive's one
+     * 2) He can blast the fugitive with extra move
+     */
     if(vertex.fugitiveCoord == vertex.terminatorCoord) {
         return true;
     }
@@ -275,12 +270,19 @@ bool Solution::isInitiallyLoosing(const Vertex &vertex) {
      * Fugitive is definitely loosing IF:
      * 1) If he is under terminator's blast
      */
+
     if(vertex.fugitiveTurn) {
         if(vertex.fugitiveCoord == vertex.terminatorCoord) {
             return true;
         }
         return isUnderBlast(vertex);
     }
+
+    /*
+     * Terminator is definitely loosing if
+     * 1) He goes to any direction and can't catch
+     * the fugitive who is standing on the last line
+     */
 
     for(auto move : possibleMoves_) {
         if(canGo(vertex, move)) {
