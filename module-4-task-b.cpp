@@ -3,8 +3,9 @@
 #include <cassert>
 #include <cstring>
 #include <iostream>
-#include <stack>
 #include <vector>
+
+#include <unordered_set>
 
 /* We have field 8x8
  * So we have 8^2 * 8^2 * 2 = 8192 vertices in
@@ -105,14 +106,11 @@ private:
     *  @param top_sort_used: is the certain vertex used
     */
     graph_vertices_t vertices_winning_;
-    graph_vertices_t vertices_known_;
+    graph_vertices_t vertices_loosing_;
     graph_vertices_t banned_;
 
     graph_vertices_t top_sort_used_;
     std::vector<size_t> loosing_degree_;
-
-    std::stack<vert_t> top_sort_dfs_;
-    std::vector<vert_t> top_traverse_order_;
 
     void handleField();
     void getDegrees();
@@ -145,18 +143,16 @@ public:
 
 Solution::Solution(const field_t &field) : field_(field) {
     vertices_winning_.resize(GetGraphVSize(), false);
-    vertices_known_.resize(GetGraphVSize(), false);
+    vertices_loosing_.resize(GetGraphVSize(), false);
     top_sort_used_.resize(GetGraphVSize(), false);
     banned_.resize(GetGraphVSize(), false);
     loosing_degree_.resize(GetGraphVSize(), 0);
 
-    assert(vertices_known_.size() == GetGraphVSize());
-
     possibleMoves_ = {{
       {1, 0},
       {-1, 0},
-      {0, 1},
       {0, -1},
+      {0, 1},
       {1, 1},
       {1, -1},
       {-1, 1},
@@ -169,35 +165,46 @@ void Solution::handleField() {
      * further topological sort
      */
     for(vert_t complexCoord = 0; complexCoord < GetGraphVSize(); ++complexCoord) {
+        if(banned_[complexCoord]) {
+            continue;
+        }
+
         bool winning = isInitiallyWinning(ComplexCoordToVertex(complexCoord));
         if(winning) {
-            vertices_known_[complexCoord] = true;
             vertices_winning_[complexCoord] = true;
-            top_sort_used_[complexCoord] = true;
             continue;
         }
 
         bool loosing = isInitiallyLoosing(ComplexCoordToVertex(complexCoord));
         if(loosing) {
-            vertices_known_[complexCoord] = true;
-            vertices_winning_[complexCoord] = false;
-            top_sort_used_[complexCoord] = true;
+            vertices_loosing_[complexCoord] = true;
         }
     }
 }
 
 bool Solution::FugitiveWins() {
-    getDegrees();
+
+    Vertex v;
+    v.fugitiveCoord = {0, 2};
+    v.terminatorCoord = {2, 0};
+    v.fugitiveTurn = 0;
+
+    size_t code = VertexToComplexCoord(v);
+
     banImpossible();
+    getDegrees();
     handleField();
     traverseTheGraph();
 
     for(size_t i = 0; i < GetGraphVSize(); ++i) {
         if(isTheVertexActualGame(ComplexCoordToVertex(i))) {
-            if(!top_sort_used_[i]) {
-                return false; //we can't come up to the end
+            if(vertices_winning_[i]) {
+                return true;
             }
-            return vertices_winning_[i];
+            if(vertices_loosing_[i]) {
+                return false;
+            }
+            return false;
         }
     }
 
@@ -206,25 +213,18 @@ bool Solution::FugitiveWins() {
 
 void Solution::dfs(vert_t currentVertex) {
     top_sort_used_[currentVertex] = true;
-
-    if(currentVertex == 1087) {
-        auto v = ComplexCoordToVertex(1087);
-        int a = 5;
-    }
-
     auto neighbours = getNeighbours(currentVertex);
-
     for(vert_t neighbour : neighbours) {
         if(!top_sort_used_[neighbour]) {
-            if(!vertices_winning_[currentVertex]) {
+            if(vertices_loosing_[currentVertex]) {
                 vertices_winning_[neighbour] = true;
                 dfs(neighbour);
-                return;
+                continue;
             }
 
             --loosing_degree_[neighbour];
             if(loosing_degree_[neighbour] == 0) {
-                vertices_winning_[neighbour] = false;
+                vertices_loosing_[neighbour] = true;
                 dfs(neighbour);
             }
         }
@@ -233,7 +233,7 @@ void Solution::dfs(vert_t currentVertex) {
 
 void Solution::traverseTheGraph() {
     for(size_t i = 0; i < GetGraphVSize(); ++i) {
-        if(vertices_known_[i] && !banned_[i]) {
+        if((vertices_winning_[i] || vertices_loosing_[i]) && !top_sort_used_[i]) {
             dfs(i);
         }
     }
@@ -254,6 +254,19 @@ bool Solution::isInitiallyWinning(const Vertex &vertex) {
         return onEdge && !underBlast;
     }
 
+    if(vertex.fugitiveCoord == vertex.terminatorCoord) {
+        return true;
+    }
+
+    for(auto move : possibleMoves_) {
+        if(canGo(vertex, move)) {
+            Vertex movedVertex = goDelta(vertex, move);
+            if(isUnderBlast(movedVertex)) {
+                return true;
+            }
+        }
+    }
+
     return underBlast;
 }
 
@@ -263,10 +276,22 @@ bool Solution::isInitiallyLoosing(const Vertex &vertex) {
      * 1) If he is under terminator's blast
      */
     if(vertex.fugitiveTurn) {
+        if(vertex.fugitiveCoord == vertex.terminatorCoord) {
+            return true;
+        }
         return isUnderBlast(vertex);
     }
 
-    return false;
+    for(auto move : possibleMoves_) {
+        if(canGo(vertex, move)) {
+            Vertex movedVertex = goDelta(vertex, move);
+            if(isUnderBlast(movedVertex)) {
+                return false;
+            }
+        }
+    }
+
+    return vertex.fugitiveCoord.second == (FieldSize::Y - 1);
 }
 
 bool Solution::isUnderBlast(const Vertex &vertex) {
@@ -291,9 +316,13 @@ bool Solution::isThereWallX(comp_t xComp, const Vertex &vertex) const {
     comp_t fugitiveY = vertex.fugitiveCoord.second;
     comp_t terminatorY = vertex.terminatorCoord.second;
 
+    if(fugitiveY == terminatorY) {
+        return false;
+    }
+
     auto betweenThem = [&](comp_t wallY) -> bool {
-        return  ((wallY - fugitiveY > 0) && (terminatorY - wallY > 0)) ||
-                ((wallY - fugitiveY < 0) && (terminatorY - wallY < 0));
+        return  ((wallY - fugitiveY >= 0) && (terminatorY - wallY >= 0)) ||
+                ((wallY - fugitiveY <= 0) && (terminatorY - wallY <= 0));
     };
 
     for(comp_t y = 0; y < FieldSize::Y; ++y) {
@@ -309,8 +338,8 @@ bool Solution::isThereWallY(comp_t yComp, const Vertex &vertex) const {
     comp_t terminatorX = vertex.terminatorCoord.first;
 
     auto betweenThem = [&](comp_t wallX) -> bool {
-        return ((wallX - fugitiveX > 0) && (terminatorX - wallX > 0)) ||
-               ((wallX - fugitiveX < 0) && (terminatorX - wallX < 0));
+        return ((wallX - fugitiveX >= 0) && (terminatorX - wallX >= 0)) ||
+               ((wallX - fugitiveX <= 0) && (terminatorX - wallX <= 0));
     };
 
     for(vert_t x = 0; x < FieldSize::X; ++x) {
@@ -333,7 +362,7 @@ bool Solution::isThereWallDiagonal(const Vertex &vertex) const {
     }
 
     if(second.first > first.first) {
-        for(int8_t i = 0; i < second.first - first.first - 1; ++i) {
+        for(int8_t i = 0; i < second.first - first.first; ++i) {
             assert(first.second + i < FieldSize::Y);
             assert(first.first + i < FieldSize::X);
             if(field_[first.second + i][first.first + i] == FieldObjects::WALL) {
@@ -341,7 +370,9 @@ bool Solution::isThereWallDiagonal(const Vertex &vertex) const {
             }
         }
     } else {
-        for(int8_t i = 0; i < first.first - second.first - 1; ++i) {
+        for(int8_t i = 0; i < first.first - second.first; ++i) {
+            assert(first.second + i < FieldSize::Y);
+            assert(first.first - i < FieldSize::X);
             if(field_[first.second + i][first.first - i] == FieldObjects::WALL) {
                 return true;
             }
@@ -421,6 +452,9 @@ bool Solution::isTheVertexActualGame(const Vertex& vertex) {
 
 void Solution::getDegrees() {
     for(size_t i = 0; i < GetGraphVSize(); ++i) {
+        if(banned_[i]) {
+            continue;
+        }
         auto neighbours = getNeighbours(i);
         for(vert_t neighbour : neighbours) {
             loosing_degree_[neighbour]++;
