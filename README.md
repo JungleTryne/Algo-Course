@@ -1,6 +1,8 @@
 # Third-Module-Algos
 
 Implementation of different algrorithms from MIPT algo course, 3rd semester
+Almost everything is implemented as a one-file source in order to be able to 
+send the result to Yandex Contest platform
 
 List of algorithms:
 
