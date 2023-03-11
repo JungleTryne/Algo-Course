@@ -1,4 +1,4 @@
-# Third-Module-Algos
+# Algo-Course
 
 Implementation of different algrorithms from MIPT algo course, 3rd semester
 Almost everything is implemented as a one-file source in order to be able to 
